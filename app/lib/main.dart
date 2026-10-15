@@ -180,11 +180,11 @@ class _SnippetHomeState extends State<SnippetHome> {
         permitted || await FlutterOverlayWindow.requestPermission() == true;
     if (!granted) return;
     await FlutterOverlayWindow.showOverlay(
-      height: 64,
-      width: 64,
+      height: 72,
+      width: 72,
       alignment: OverlayAlignment.centerRight,
-      enableDrag: true,
-      positionGravity: PositionGravity.auto,
+      enableDrag: false,
+      positionGravity: PositionGravity.none,
       overlayTitle: 'Float overlay active',
       overlayContent: 'Pinned notes are ready to copy.',
     );
