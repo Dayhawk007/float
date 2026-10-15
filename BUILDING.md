@@ -11,6 +11,7 @@ This file is the running local-development record for Float. It is intentionally
 - TypeScript CLI with a local JSON store and a local stdio MCP server.
 - Android package ID: `com.dayhawk.floatnotes`.
 - Native Android floating-overlay permission and foreground-service wiring.
+- A draggable side handle that expands to pinned notes only when the user taps it; pin/unpin changes refresh an active overlay.
 - Opt-in clipboard watcher. Clipboard collection is disabled by default and remains local to the device.
 
 ### Explicitly not implemented

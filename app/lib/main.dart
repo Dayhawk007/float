@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'clipboard_history.dart';
@@ -122,6 +123,13 @@ class _SnippetHomeState extends State<SnippetHome> {
       }
     });
     await _save();
+    try {
+      if (await FlutterOverlayWindow.isActive()) {
+        await FlutterOverlayWindow.shareData('snippets-changed');
+      }
+    } on MissingPluginException {
+      // The overlay channel is Android-only and is unavailable in widget tests.
+    }
   }
 
   Future<void> _delete(String id) async {
@@ -172,8 +180,8 @@ class _SnippetHomeState extends State<SnippetHome> {
         permitted || await FlutterOverlayWindow.requestPermission() == true;
     if (!granted) return;
     await FlutterOverlayWindow.showOverlay(
-      height: 320,
-      width: 340,
+      height: 64,
+      width: 64,
       alignment: OverlayAlignment.centerRight,
       enableDrag: true,
       positionGravity: PositionGravity.auto,
