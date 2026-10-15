@@ -1,0 +1,17 @@
+.dart_tool/
+.idea/
+.metadata
+.packages
+.pub-cache/
+build/
+node_modules/
+cli/dist/
+cli/node_modules/
+*.iml
+app/android/local.properties
+app/.dart_tool/
+app/build/
+app/.idea/
+app/ios/Flutter/
+app/macos/Flutter/ephemeral/
+app/windows/flutter/ephemeral/
