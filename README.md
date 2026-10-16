@@ -38,7 +38,7 @@ On the same trusted Wi-Fi network, run:
 node cli/dist/index.js pair serve
 ```
 
-The CLI prints a one-time pairing URI and terminal QR code. In Float, choose the link icon and paste the pairing URI. The token expires after ten minutes; after pairing, the phone holds a device token in Android secure storage and syncs only while the local agent is running and reachable. This is peer-to-peer local development: it creates no account and sends no data to a hosted service.
+The CLI prints a one-time pairing URI, terminal QR code, and an eight-digit manual code. In Float, choose the link icon, scan the QR code, or enter the printed local-agent URL and manual code. Pairing credentials expire after ten minutes; after pairing, the phone holds a device token in Android secure storage and syncs only while the local agent is running and reachable. This is peer-to-peer local development: it creates no account and sends no data to a hosted service.
 
 ### MCP server
 

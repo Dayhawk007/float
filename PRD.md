@@ -122,10 +122,10 @@ The full-screen app is the management surface. It includes:
 ### 8.4 Cross-device sync (v1.1)
 
 - Sync is optional and disabled by default.
-- A desktop CLI agent is the local source of truth. A user starts it explicitly, then pairs a phone on a trusted local network using a short-lived QR/pairing code.
+- A desktop CLI agent is the local source of truth. A user starts it explicitly, then pairs a phone on a trusted local network by scanning a short-lived QR credential or entering the printed agent URL and eight-digit code.
 - Pairing creates a revocable token for that phone, not a user account. The desktop stores only a hash of the device token; Android stores its token in platform-secure storage.
 - The app syncs user-authored snippets and user-selected clipboard-history entries; it must not automatically sync all clipboard history.
-- Initial sync occurs while Float is open and the paired agent is reachable. Changes use last-write-wins based on `updatedAt`; background sync, mDNS discovery, and camera QR scanning are follow-up work.
+- Initial sync occurs while Float is open and the paired agent is reachable. Changes use last-write-wins based on `updatedAt`; background sync and mDNS discovery are follow-up work.
 - Users can forget a paired device, stop the local agent, export their local data, and continue using the local app.
 
 ### 8.5 CLI and MCP companion (first release)
@@ -236,7 +236,7 @@ Initial metrics should be privacy-preserving and optional where possible:
 
 ### Milestone 3 — Optional local pairing
 
-- Camera QR scanning, mDNS discovery, paired-device management, conflict handling, background sync where Android permits it, and deletion/export flows.
+- mDNS discovery, paired-device management, conflict handling, background sync where Android permits it, and deletion/export flows.
 
 ### Milestone 4 — MCP and public launch
 

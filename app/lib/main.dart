@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'clipboard_history.dart';
 import 'float_theme.dart';
 import 'overlay.dart';
+import 'pairing_scanner.dart';
 import 'paired_sync_service.dart';
 
 const snippetStorageKey = 'float.snippets.v1';
@@ -237,19 +238,37 @@ class _SnippetHomeState extends State<SnippetHome> {
       );
       return;
     }
-    final result = await showDialog<String>(
+    var attempt = await showDialog<_PairingAttempt>(
       context: context,
       builder: (_) => const _PairingDialog(),
     );
-    if (result == null) {
+    if (attempt == null) {
       return;
     }
+    if (attempt.scan) {
+      if (!mounted) {
+        return;
+      }
+      final pairingUri = await Navigator.of(
+        context,
+      ).push<String>(MaterialPageRoute(builder: (_) => const PairingScanner()));
+      if (pairingUri == null) return;
+      attempt = _PairingAttempt.qr(pairingUri);
+    }
     try {
-      final device = await _pairedSync.pair(
-        result,
-        deviceId: 'android-${DateTime.now().microsecondsSinceEpoch}',
-        deviceName: 'Float Android',
-      );
+      final deviceId = 'android-${DateTime.now().microsecondsSinceEpoch}';
+      final device = attempt.pairingUri != null
+          ? await _pairedSync.pair(
+              attempt.pairingUri!,
+              deviceId: deviceId,
+              deviceName: 'Float Android',
+            )
+          : await _pairedSync.pairWithCode(
+              attempt.agentUrl!,
+              attempt.manualCode!,
+              deviceId: deviceId,
+              deviceName: 'Float Android',
+            );
       if (mounted) {
         setState(() => _pairedDevice = device);
       }
@@ -733,6 +752,26 @@ class _ClipboardSetting extends StatelessWidget {
   );
 }
 
+class _PairingAttempt {
+  const _PairingAttempt.scan()
+    : scan = true,
+      pairingUri = null,
+      agentUrl = null,
+      manualCode = null;
+  const _PairingAttempt.qr(this.pairingUri)
+    : scan = false,
+      agentUrl = null,
+      manualCode = null;
+  const _PairingAttempt.manual(this.agentUrl, this.manualCode)
+    : scan = false,
+      pairingUri = null;
+
+  final bool scan;
+  final String? pairingUri;
+  final String? agentUrl;
+  final String? manualCode;
+}
+
 class _PairingDialog extends StatefulWidget {
   const _PairingDialog();
   @override
@@ -740,10 +779,12 @@ class _PairingDialog extends StatefulWidget {
 }
 
 class _PairingDialogState extends State<_PairingDialog> {
-  final _controller = TextEditingController();
+  final _agentUrlController = TextEditingController();
+  final _codeController = TextEditingController();
   @override
   void dispose() {
-    _controller.dispose();
+    _agentUrlController.dispose();
+    _codeController.dispose();
     super.dispose();
   }
 
@@ -763,27 +804,53 @@ class _PairingDialogState extends State<_PairingDialog> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'On your computer, run “float pair serve”, then paste its one-time pairing code here. The terminal also shows a QR code for the upcoming camera pairing flow.',
+            'Run “float pair serve” on your computer. Scan its QR code, or enter the local agent address and eight-digit code it prints.',
             style: Theme.of(
               context,
             ).textTheme.bodySmall?.copyWith(color: FloatTheme.mutedInk),
           ),
           const SizedBox(height: 16),
-          TextField(
-            controller: _controller,
-            minLines: 3,
-            maxLines: 5,
-            decoration: const InputDecoration(
-              labelText: 'One-time pairing code',
+          FilledButton.icon(
+            onPressed: () =>
+                Navigator.pop(context, const _PairingAttempt.scan()),
+            icon: const Icon(Icons.qr_code_scanner_rounded),
+            label: const Text('Scan QR code'),
+          ),
+          const SizedBox(height: 18),
+          const Text(
+            'OR ENTER MANUALLY',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.2,
             ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _agentUrlController,
+            keyboardType: TextInputType.url,
+            decoration: const InputDecoration(labelText: 'Local agent URL'),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _codeController,
+            keyboardType: TextInputType.number,
+            maxLength: 8,
+            decoration: const InputDecoration(labelText: '8-digit code'),
           ),
         ],
       ),
     ),
     actions: [
       FilledButton(
-        onPressed: () => Navigator.pop(context, _controller.text),
-        child: const Text('Pair device'),
+        onPressed: () => Navigator.pop(
+          context,
+          _PairingAttempt.manual(
+            _agentUrlController.text,
+            _codeController.text,
+          ),
+        ),
+        child: const Text('Pair manually'),
       ),
     ],
   );

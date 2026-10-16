@@ -39,6 +39,7 @@ dependencies:
     path: ../packages/flutter_overlay_window_local
   http: ^1.6.0
   flutter_secure_storage: ^10.3.4
+  mobile_scanner: 5.2.3
 
 dev_dependencies:
   flutter_test:

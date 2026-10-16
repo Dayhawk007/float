@@ -1,4 +1,4 @@
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { homedir, networkInterfaces } from 'node:os';
@@ -84,7 +84,9 @@ export async function startPairingAgent(options: { host?: string; port?: number;
   if (!advertisedHost) throw new Error('No LAN IPv4 address found. Connect to Wi-Fi or pass --url http://HOST:PORT.');
   const agentUrl = options.advertiseUrl ?? `http://${advertisedHost}:${port}`;
   const oneTimeToken = token();
+  const manualCode = String(randomInt(10_000_000, 100_000_000));
   const expiresAt = Date.now() + 10 * 60 * 1000;
+  let manualCodeAttempts = 0;
   const registry = new DeviceRegistry();
   const store = new FloatStore();
   const server = createServer(async (request, response) => {
@@ -94,9 +96,14 @@ export async function startPairingAgent(options: { host?: string; port?: number;
       if (request.method === 'POST' && pathname === '/v1/pair') {
         const payload = pairingSchema.parse(await body(request));
         const supplied = request.headers['x-float-pairing-token'];
+        const suppliedCode = request.headers['x-float-pairing-code'];
         const expected = Buffer.from(oneTimeToken, 'utf8');
         const provided = Buffer.from(typeof supplied === 'string' ? supplied : '', 'utf8');
-        if (Date.now() > expiresAt || provided.length !== expected.length || !timingSafeEqual(provided, expected)) return json(response, 401, { error: 'Pairing code is invalid or expired.' });
+        const code = typeof suppliedCode === 'string' ? suppliedCode : '';
+        const tokenMatches = provided.length === expected.length && timingSafeEqual(provided, expected);
+        const codeMatches = code.length === manualCode.length && timingSafeEqual(Buffer.from(code, 'utf8'), Buffer.from(manualCode, 'utf8'));
+        if (!tokenMatches && code) manualCodeAttempts += 1;
+        if (Date.now() > expiresAt || (!tokenMatches && (!codeMatches || manualCodeAttempts > 5))) return json(response, 401, { error: 'Pairing credential is invalid, expired, or locked after too many attempts.' });
         return json(response, 201, { protocol: 1, deviceToken: await registry.issue(payload) });
       }
       if (!(await registry.valid(bearer(request)))) return json(response, 401, { error: 'A paired-device token is required.' });
@@ -119,6 +126,7 @@ export async function startPairingAgent(options: { host?: string; port?: number;
   console.log('Scan this QR code in Float within 10 minutes. Keep this terminal open while syncing.');
   qrcode.generate(pairingUri, { small: true });
   console.log(`Pairing code: ${pairingUri}`);
+  console.log(`Manual pairing: ${agentUrl}  •  code ${manualCode}`);
   if (options.durationSeconds) setTimeout(() => server.close(), options.durationSeconds * 1000).unref();
   await new Promise<void>((resolve) => server.once('close', resolve));
 }

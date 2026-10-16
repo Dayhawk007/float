@@ -61,11 +61,44 @@ class PairedSyncService {
     if (!agent.hasScheme || agent.host.isEmpty) {
       throw Exception('The pairing code has an invalid agent URL.');
     }
+    return _pair(
+      agentUrl,
+      deviceId: deviceId,
+      deviceName: deviceName,
+      pairingHeader: 'x-float-pairing-token',
+      pairingCredential: pairingToken,
+    );
+  }
+
+  Future<PairedDevice> pairWithCode(
+    String agentUrl,
+    String code, {
+    required String deviceId,
+    required String deviceName,
+  }) async => _pair(
+    agentUrl.trim(),
+    deviceId: deviceId,
+    deviceName: deviceName,
+    pairingHeader: 'x-float-pairing-code',
+    pairingCredential: code.trim(),
+  );
+
+  Future<PairedDevice> _pair(
+    String agentUrl, {
+    required String deviceId,
+    required String deviceName,
+    required String pairingHeader,
+    required String pairingCredential,
+  }) async {
+    final agent = Uri.parse(agentUrl);
+    if (!agent.hasScheme || agent.host.isEmpty) {
+      throw Exception('Enter a valid local agent URL.');
+    }
     final response = await _client.post(
       agent.replace(path: '/v1/pair'),
       headers: {
         'content-type': 'application/json',
-        'x-float-pairing-token': pairingToken,
+        pairingHeader: pairingCredential,
       },
       body: jsonEncode({'deviceId': deviceId, 'deviceName': deviceName}),
     );
