@@ -22,7 +22,6 @@ const databaseSchema = z.object({
 });
 
 export type Snippet = z.infer<typeof snippetSchema>;
-export type SnippetStore = Pick<FloatStore, 'list' | 'get' | 'create' | 'update' | 'markUsed' | 'remove' | 'export'>;
 type Database = z.infer<typeof databaseSchema>;
 
 export class FloatStore {

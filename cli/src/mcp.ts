@@ -1,13 +1,14 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import type { SnippetStore } from './store.js';
+import { FloatStore } from './store.js';
 
 function result(value: unknown) {
   return { content: [{ type: 'text' as const, text: JSON.stringify(value, null, 2) }] };
 }
 
-export async function startMcpServer(store: SnippetStore): Promise<void> {
+export async function startMcpServer(): Promise<void> {
+  const store = new FloatStore();
   const server = new McpServer({ name: 'float', version: '0.1.0' });
 
   server.registerTool('search_snippets', {

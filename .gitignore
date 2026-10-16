@@ -21,5 +21,3 @@ app/windows/flutter/ephemeral/
 /packages/flutter_overlay_window_local/test/
 /packages/flutter_overlay_window_local/.metadata
 /packages/flutter_overlay_window_local/analysis_options.yaml
-/.tmp-cli-account/
-/server/dist/
