@@ -8,6 +8,7 @@ Float is a local-first Android notes/clipboard utility with a desktop CLI and lo
 - `cli/` — TypeScript CLI plus the local stdio MCP server.
 - `PRD.md` — product scope and phased roadmap.
 - `DESIGN.md` — required client-side design and interaction system.
+- `MCP.md` — local MCP setup for Codex, Claude Desktop, and Cursor.
 
 ## Run locally
 
@@ -56,6 +57,10 @@ args: ["E:\\Development\\float\\cli\\dist\\index.js", "mcp", "serve"]
 ```
 
 The MCP server is local stdio only. It exposes `search_snippets`, `get_snippet`, `create_snippet`, and `update_snippet`; it neither opens a network port nor sends data to a cloud service. The optional paired-device agent is separate and only opens a LAN port while `float pair serve` is running.
+
+### Clipboard shelf
+
+Clipboard history is opt-in. When enabled, Float keeps the latest 20 text pastes in a local “Latest pastes” shelf. Tapping a paste copies it again; the bookmark action saves it as a normal Float note. Clipboard entries are not silently converted into notes and are not synced unless explicitly saved.
 
 ## Validation
 

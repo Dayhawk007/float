@@ -21,7 +21,7 @@ For every client-side change that affects UI or interaction, follow `DESIGN.md` 
 - The paired phone polls the local agent every five seconds while paired and signals the active overlay after a pull, so desktop-created notes appear without restarting or manually rereading.
 - Overlay permission failures explain Android's Display over other apps path and can open the app-specific system settings screen.
 - Notes receive lightweight inferred presentation context (LinkedIn, link, template, code, or note) without changing the portable snippet schema.
-- Opt-in clipboard watcher. Clipboard collection is disabled by default and remains local to the device.
+- Opt-in clipboard shelf. Clipboard collection is disabled by default; when enabled, recent text pastes are kept in a capped local shelf and are only promoted to permanent notes when the user explicitly saves them.
 - Account-free paired-device sync foundation: `float pair serve` creates a ten-minute QR credential plus an eight-digit manual code, issues a per-device token, and serves the desktop's local snippet store only while explicitly running on the local network. The Android app can scan the QR, enter the printed agent URL and code, stores its token in Android secure storage, and performs foreground last-write-wins sync.
 - Pairing and sync emit structured, privacy-safe diagnostics to Android `FloatPair` logs and the local agent terminal. They record stage, origin, status, count, elapsed time, and error type, never tokens or note contents.
 
@@ -29,7 +29,7 @@ For every client-side change that affects UI or interaction, follow `DESIGN.md` 
 
 - Accounts, authentication, hosted API, cloud database, deployment, analytics, crash reporting, background sync, and mDNS discovery.
 - iOS, desktop GUI, browser extension, or remote MCP transport.
-- Clipboard history that is enabled without the user’s explicit in-app choice.
+- Automatic promotion of every clipboard change into a permanent note.
 
 ## Next work
 

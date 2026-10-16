@@ -120,6 +120,7 @@ class SnippetHome extends StatefulWidget {
 class _SnippetHomeState extends State<SnippetHome> {
   final _searchController = TextEditingController();
   List<Snippet> _snippets = [];
+  List<ClipboardEntry> _clipboardEntries = [];
   bool _loading = true;
   bool _clipboardHistoryEnabled = false;
   ClipboardHistoryService? _clipboardHistory;
@@ -127,16 +128,21 @@ class _SnippetHomeState extends State<SnippetHome> {
   PairedDevice? _pairedDevice;
   bool _syncing = false;
   Timer? _syncTimer;
+  StreamSubscription<dynamic>? _overlayUpdates;
 
   @override
   void initState() {
     super.initState();
+    _overlayUpdates = FlutterOverlayWindow.overlayListener.listen((event) {
+      if (event == 'clipboard-saved') unawaited(_load());
+    });
     _load();
   }
 
   @override
   void dispose() {
     _clipboardHistory?.dispose();
+    _overlayUpdates?.cancel();
     _syncTimer?.cancel();
     _searchController.dispose();
     super.dispose();
@@ -150,6 +156,7 @@ class _SnippetHomeState extends State<SnippetHome> {
           .map((item) => Snippet.fromJson(item as Map<String, dynamic>))
           .toList();
     }
+    _clipboardEntries = await readClipboardEntries();
     _clipboardHistoryEnabled =
         preferences.getBool(clipboardHistoryEnabledKey) ?? false;
     if (_clipboardHistoryEnabled) _startClipboardHistory();
@@ -351,7 +358,11 @@ class _SnippetHomeState extends State<SnippetHome> {
       clipboardHistoryEnabledKey,
       enabled,
     );
-    if (enabled) _startClipboardHistory();
+    if (enabled) {
+      _startClipboardHistory();
+      final current = await Clipboard.getData(Clipboard.kTextPlain);
+      if (current?.text != null) await _captureClipboardText(current!.text!);
+    }
     if (!enabled) {
       await _clipboardHistory?.dispose();
       _clipboardHistory = null;
@@ -360,21 +371,38 @@ class _SnippetHomeState extends State<SnippetHome> {
   }
 
   Future<void> _captureClipboardText(String text) async {
-    if (!_clipboardHistoryEnabled ||
-        _snippets.any(
-          (snippet) =>
-              snippet.body == text && snippet.title.startsWith('Clipboard'),
-        )) {
-      return;
+    if (!_clipboardHistoryEnabled || text.trim().isEmpty) return;
+    final trimmed = text.trim();
+    _clipboardEntries.removeWhere((entry) => entry.text == trimmed);
+    _clipboardEntries.insert(
+      0,
+      ClipboardEntry(
+        id: DateTime.now().microsecondsSinceEpoch.toString(),
+        text: trimmed,
+        capturedAt: DateTime.now(),
+      ),
+    );
+    if (_clipboardEntries.length > 20) {
+      _clipboardEntries = _clipboardEntries.take(20).toList();
     }
+    await writeClipboardEntries(_clipboardEntries);
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _saveClipboardEntry(ClipboardEntry entry) async {
     await _upsert(
       Snippet(
         id: DateTime.now().microsecondsSinceEpoch.toString(),
-        title: 'Clipboard • ${TimeOfDay.now().format(context)}',
-        body: text,
+        title: 'Saved paste',
+        body: entry.text,
         updatedAt: DateTime.now(),
       ),
     );
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Saved to Float notes.')));
+    }
   }
 
   Future<void> _showOverlay() async {
@@ -546,6 +574,16 @@ class _SnippetHomeState extends State<SnippetHome> {
                     onChanged: _setClipboardHistory,
                   ),
                 ),
+                if (_clipboardHistoryEnabled && _clipboardEntries.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                    child: _ClipboardShelf(
+                      entries: _clipboardEntries,
+                      onCopy: (entry) =>
+                          Clipboard.setData(ClipboardData(text: entry.text)),
+                      onSave: _saveClipboardEntry,
+                    ),
+                  ),
                 Expanded(
                   child: AnimatedSwitcher(
                     duration: FloatTheme.shortMotion,
@@ -859,13 +897,75 @@ class _ClipboardSetting extends StatelessWidget {
               ),
               SizedBox(height: 2),
               Text(
-                'Optional and saved locally.',
+                'Review recent pastes and save only what you need.',
                 style: TextStyle(fontSize: 12, color: FloatTheme.mutedInk),
               ),
             ],
           ),
         ),
         Switch.adaptive(value: enabled, onChanged: onChanged),
+      ],
+    ),
+  );
+}
+
+class _ClipboardShelf extends StatelessWidget {
+  const _ClipboardShelf({
+    required this.entries,
+    required this.onCopy,
+    required this.onSave,
+  });
+
+  final List<ClipboardEntry> entries;
+  final ValueChanged<ClipboardEntry> onCopy;
+  final ValueChanged<ClipboardEntry> onSave;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    constraints: const BoxConstraints(maxHeight: 190),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: FloatTheme.line),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(14, 12, 14, 4),
+          child: Text(
+            'LATEST PASTES',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.1,
+            ),
+          ),
+        ),
+        Expanded(
+          child: ListView.builder(
+            itemCount: entries.length,
+            itemBuilder: (context, index) {
+              final entry = entries[index];
+              return ListTile(
+                dense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+                leading: const Icon(Icons.content_paste_rounded, size: 18),
+                title: Text(
+                  entry.text,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                onTap: () => onCopy(entry),
+                trailing: IconButton(
+                  tooltip: 'Save as note',
+                  icon: const Icon(Icons.bookmark_add_outlined, size: 19),
+                  onPressed: () => onSave(entry),
+                ),
+              );
+            },
+          ),
+        ),
       ],
     ),
   );
