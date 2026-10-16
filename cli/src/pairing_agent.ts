@@ -1,4 +1,4 @@
-import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { homedir, networkInterfaces } from 'node:os';
@@ -20,6 +20,9 @@ type PairingDatabase = { version: 1; devices: PairedDevice[] };
 function floatHome(): string { return process.env.FLOAT_HOME ?? join(homedir(), '.float'); }
 function hash(value: string): string { return createHash('sha256').update(value).digest('hex'); }
 function token(): string { return randomBytes(32).toString('base64url'); }
+function log(event: string, details: Record<string, unknown> = {}): void {
+  console.log(`[float-agent] ${JSON.stringify({ timestamp: new Date().toISOString(), event, ...details })}`);
+}
 function json(response: ServerResponse, status: number, value: unknown): void {
   response.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
   response.end(JSON.stringify(value));
@@ -90,9 +93,14 @@ export async function startPairingAgent(options: { host?: string; port?: number;
   const registry = new DeviceRegistry();
   const store = new FloatStore();
   const server = createServer(async (request, response) => {
+    const requestId = randomUUID().slice(0, 8);
     try {
       const pathname = new URL(request.url ?? '/', agentUrl).pathname;
-      if (request.method === 'GET' && pathname === '/v1/health') return json(response, 200, { status: 'ok', protocol: 1 });
+      log('request.received', { requestId, method: request.method, pathname, remoteAddress: request.socket.remoteAddress });
+      if (request.method === 'GET' && pathname === '/v1/health') {
+        log('health.succeeded', { requestId });
+        return json(response, 200, { status: 'ok', protocol: 1 });
+      }
       if (request.method === 'POST' && pathname === '/v1/pair') {
         const payload = pairingSchema.parse(await body(request));
         const supplied = request.headers['x-float-pairing-token'];
@@ -103,26 +111,52 @@ export async function startPairingAgent(options: { host?: string; port?: number;
         const tokenMatches = provided.length === expected.length && timingSafeEqual(provided, expected);
         const codeMatches = code.length === manualCode.length && timingSafeEqual(Buffer.from(code, 'utf8'), Buffer.from(manualCode, 'utf8'));
         if (!tokenMatches && code) manualCodeAttempts += 1;
-        if (Date.now() > expiresAt || (!tokenMatches && (!codeMatches || manualCodeAttempts > 5))) return json(response, 401, { error: 'Pairing credential is invalid, expired, or locked after too many attempts.' });
-        return json(response, 201, { protocol: 1, deviceToken: await registry.issue(payload) });
+        if (Date.now() > expiresAt || (!tokenMatches && (!codeMatches || manualCodeAttempts > 5))) {
+          log('pairing.rejected', { requestId, reason: Date.now() > expiresAt ? 'expired' : manualCodeAttempts > 5 ? 'manual-code-locked' : 'invalid-credential' });
+          return json(response, 401, { error: 'Pairing credential is invalid, expired, or locked after too many attempts.' });
+        }
+        const deviceToken = await registry.issue(payload);
+        log('pairing.succeeded', { requestId, deviceId: payload.deviceId, deviceName: payload.deviceName, credentialType: tokenMatches ? 'qr' : 'manual' });
+        return json(response, 201, { protocol: 1, deviceToken });
       }
-      if (!(await registry.valid(bearer(request)))) return json(response, 401, { error: 'A paired-device token is required.' });
-      if (request.method === 'GET' && pathname === '/v1/snippets') return json(response, 200, { snippets: await store.list() });
+      if (!(await registry.valid(bearer(request)))) {
+        log('request.rejected', { requestId, reason: 'unpaired-device' });
+        return json(response, 401, { error: 'A paired-device token is required.' });
+      }
+      if (request.method === 'GET' && pathname === '/v1/snippets') {
+        const snippets = await store.list();
+        log('sync.pull.succeeded', { requestId, count: snippets.length });
+        return json(response, 200, { snippets });
+      }
       const snippetMatch = pathname.match(/^\/v1\/snippets\/([^/]+)$/);
       if (request.method === 'PUT' && snippetMatch) {
         const snippet = snippetSchema.parse(await body(request));
         const id = decodeURIComponent(snippetMatch[1]);
-        if (id !== snippet.id) return json(response, 400, { error: 'Snippet ID must match the request path.' });
+        if (id !== snippet.id) {
+          log('sync.push.rejected', { requestId, reason: 'id-mismatch' });
+          return json(response, 400, { error: 'Snippet ID must match the request path.' });
+        }
         const saved: Snippet = await store.upsert(snippet);
+        log('sync.push.succeeded', { requestId, snippetId: saved.id });
         return json(response, 200, { snippet: saved });
       }
-      if (request.method === 'DELETE' && snippetMatch) { await store.remove(decodeURIComponent(snippetMatch[1])); return json(response, 204, {}); }
+      if (request.method === 'DELETE' && snippetMatch) {
+        const id = decodeURIComponent(snippetMatch[1]);
+        await store.remove(id);
+        log('sync.delete.succeeded', { requestId, snippetId: id });
+        return json(response, 204, {});
+      }
+      log('request.rejected', { requestId, reason: 'route-not-found' });
       return json(response, 404, { error: 'Route not found.' });
-    } catch (error) { return json(response, 400, { error: error instanceof Error ? error.message : 'Invalid request.' }); }
+    } catch (error) {
+      log('request.failed', { requestId, errorType: error instanceof Error ? error.name : typeof error });
+      return json(response, 400, { error: error instanceof Error ? error.message : 'Invalid request.' });
+    }
   });
   await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(port, host, () => resolve()); });
   const pairingUri = `float://pair?url=${encodeURIComponent(agentUrl)}&token=${encodeURIComponent(oneTimeToken)}&v=1`;
   console.log(`Float paired-device agent listening at ${agentUrl}`);
+  log('agent.started', { agentUrl, host, port, dataPath: process.env.FLOAT_HOME ?? join(homedir(), '.float') });
   console.log('Scan this QR code in Float within 10 minutes. Keep this terminal open while syncing.');
   qrcode.generate(pairingUri, { small: true });
   console.log(`Pairing code: ${pairingUri}`);
