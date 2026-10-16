@@ -13,6 +13,10 @@ import 'sync_service.dart';
 
 const snippetStorageKey = 'float.snippets.v1';
 const clipboardHistoryEnabledKey = 'float.clipboard-history-enabled.v1';
+const defaultSyncServerUrl = String.fromEnvironment(
+  'FLOAT_API_URL',
+  defaultValue: 'http://10.0.2.2:8787',
+);
 
 void main() => runApp(const FloatApp());
 
@@ -723,7 +727,7 @@ class _AccountDialog extends StatefulWidget {
 }
 
 class _AccountDialogState extends State<_AccountDialog> {
-  final _apiController = TextEditingController(text: 'http://10.0.2.2:8787');
+  final _apiController = TextEditingController(text: defaultSyncServerUrl);
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _register = false;

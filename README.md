@@ -36,7 +36,7 @@ pnpm install
 pnpm server:dev
 ```
 
-The server binds to `127.0.0.1:8787` by default and stores development data in `%USERPROFILE%\.float-server\database.json`. The Android emulator can use `http://10.0.2.2:8787`; a physical device requires a deployed HTTPS endpoint, which is deliberately not configured yet. The CLI's account session is a development-only local file; production credential storage remains a required follow-up.
+The server binds to `127.0.0.1:8787` by default and stores development data in `%USERPROFILE%\.float-server\database.json`. The Android emulator defaults to `http://10.0.2.2:8787`. Override that default for a real device with `flutter run --dart-define=FLOAT_API_URL=http://192.168.x.x:8787`; start the server with `FLOAT_BIND_HOST=0.0.0.0` on a trusted local network. A deployed HTTPS endpoint is still required before production use. The CLI's account session is a development-only local file; production credential storage remains a required follow-up.
 
 The CLI persists to `%USERPROFILE%\\.float\\snippets.json` by default. Set `FLOAT_HOME` to use an isolated local data directory.
 
