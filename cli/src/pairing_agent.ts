@@ -39,10 +39,21 @@ async function body(request: IncomingMessage): Promise<unknown> {
   return JSON.parse(Buffer.concat(chunks).toString('utf8'));
 }
 function lanAddress(): string | undefined {
-  for (const addresses of Object.values(networkInterfaces())) {
-    for (const address of addresses ?? []) if (address.family === 'IPv4' && !address.internal) return address.address;
-  }
-  return undefined;
+  const candidates = Object.entries(networkInterfaces())
+    .flatMap(([name, addresses]) => (addresses ?? []).map((address) => ({ name, address })))
+    .filter(({ address }) => address.family === 'IPv4' && !address.internal && !address.address.startsWith('169.254.'))
+    .sort((left, right) => interfaceScore(right.name) - interfaceScore(left.name));
+  log('network.addresses.detected', {
+    candidates: candidates.map(({ name, address }) => ({ name, address: address.address })),
+  });
+  return candidates[0]?.address.address;
+}
+
+function interfaceScore(name: string): number {
+  if (/(wsl|hyper-v|virtual|vmware|docker|loopback)/i.test(name)) return -100;
+  if (/(wi-?fi|wlan|wireless)/i.test(name)) return 100;
+  if (/ethernet/i.test(name)) return 50;
+  return 0;
 }
 
 class DeviceRegistry {

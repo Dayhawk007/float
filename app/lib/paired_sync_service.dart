@@ -1,13 +1,16 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
 const _pairedDeviceKey = 'float.paired-device.v1';
 
 void _log(String event, [Map<String, Object?> details = const {}]) {
-  developer.log(jsonEncode({'event': event, ...details}), name: 'FloatPair');
+  final message = jsonEncode({'event': event, ...details});
+  debugPrint('[FloatPair] $message');
+  developer.log(message, name: 'FloatPair');
 }
 
 Map<String, dynamic> _responseBody(http.Response response) {

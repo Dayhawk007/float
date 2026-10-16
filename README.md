@@ -42,7 +42,7 @@ The CLI prints a one-time pairing URI, terminal QR code, and an eight-digit manu
 
 ### Pairing diagnostics
 
-Keep the `float pair serve` terminal open during pairing. It prints `[float-agent]` request events with the request ID, route, status, and safe failure reason. Android emits matching `FloatPair` events to `adb logcat`; use `adb logcat | Select-String FloatPair` on Windows. These logs deliberately omit pairing codes, tokens, and note contents.
+Keep the `float pair serve` terminal open during pairing. It prints `[float-agent]` request events with the request ID, route, status, and safe failure reason. Android emits matching `FloatPair` events to `adb logcat`; use `adb logcat | Select-String FloatPair` on Windows. The agent prefers physical Wi-Fi/Ethernet interfaces over virtual adapters; if needed, explicitly pass `--url http://YOUR_PC_WIFI_IP:8787`. These logs deliberately omit pairing codes, tokens, and note contents.
 
 ### MCP server
 
