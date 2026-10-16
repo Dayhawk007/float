@@ -24,7 +24,13 @@ class _FloatOverlayState extends State<FloatOverlay> {
   void initState() {
     super.initState();
     _load();
-    _updates = FlutterOverlayWindow.overlayListener.listen((_) => _load());
+    _updates = FlutterOverlayWindow.overlayListener.listen((event) {
+      if (event == 'overlay-handle-tap' && !_expanded) {
+        _expand();
+        return;
+      }
+      _load();
+    });
   }
 
   @override
@@ -47,7 +53,7 @@ class _FloatOverlayState extends State<FloatOverlay> {
   }
 
   Future<void> _expand() async {
-    await FlutterOverlayWindow.resizeOverlay(340, 320, true);
+    await FlutterOverlayWindow.resizeOverlay(340, 320, false);
     if (mounted) setState(() => _expanded = true);
   }
 
@@ -72,14 +78,13 @@ class _FloatOverlayState extends State<FloatOverlay> {
               onCollapse: _collapse,
               onCopy: _copy,
             )
-          : _OverlayHandle(onTap: _expand),
+          : const _OverlayHandle(),
     ),
   );
 }
 
 class _OverlayHandle extends StatelessWidget {
-  const _OverlayHandle({required this.onTap});
-  final VoidCallback onTap;
+  const _OverlayHandle();
 
   @override
   Widget build(BuildContext context) => Center(
@@ -87,14 +92,10 @@ class _OverlayHandle extends StatelessWidget {
       color: const Color(0xFF3157D5),
       elevation: 0,
       shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap,
-        child: const SizedBox(
-          width: 64,
-          height: 64,
-          child: Icon(Icons.sticky_note_2_outlined, color: Colors.white),
-        ),
+      child: const SizedBox(
+        width: 64,
+        height: 64,
+        child: Icon(Icons.sticky_note_2_outlined, color: Colors.white),
       ),
     ),
   );

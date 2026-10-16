@@ -636,16 +636,14 @@ public class OverlayService extends Service implements View.OnTouchListener {
             case MotionEvent.ACTION_CANCEL:
                 lastYPosition = params.y;
                 boolean wasDragging = dragging;
-                dragging = false;  // Reset dragging state for next touch sequence
-                
-                if (windowSetup.getPositionGravity().equals("none")) {
-                    return wasDragging;
-                }
+                dragging = false;
 
-                if (windowManager != null) {
-                    startTrayAnimation(params);
+                if (wasDragging) {
+                    snapToNearestVerticalEdge(params);
+                } else if (event.getAction() == MotionEvent.ACTION_UP && overlayMessageChannel != null) {
+                    overlayMessageChannel.send("overlay-handle-tap");
                 }
-                return wasDragging;
+                return true;
         }
         return false;
     }
@@ -679,6 +677,24 @@ public class OverlayService extends Service implements View.OnTouchListener {
         if (windowManager != null) {
             windowManager.updateViewLayout(flutterView, params);
         }
+    }
+
+    private void snapToNearestVerticalEdge(WindowManager.LayoutParams params) {
+        int[] bounds = getSafeBoundaries();
+        int maxX = Math.max(0, bounds[2] - flutterView.getWidth());
+
+        if ((windowSetup.getGravity() & Gravity.RIGHT) == Gravity.RIGHT) {
+            params.x = params.x <= maxX / 2 ? 0 : maxX;
+        } else if ((windowSetup.getGravity() & Gravity.LEFT) == Gravity.LEFT) {
+            params.x = params.x <= maxX / 2 ? 0 : maxX;
+        } else {
+            int leftX = bounds[0] - (szWindow.x / 2) + (flutterView.getWidth() / 2);
+            int rightX = bounds[2] - (szWindow.x / 2) - (flutterView.getWidth() / 2);
+            params.x = Math.abs(params.x - leftX) <= Math.abs(params.x - rightX) ? leftX : rightX;
+        }
+
+        constrainToSafeBoundaries(params, flutterView.getWidth(), flutterView.getHeight());
+        windowManager.updateViewLayout(flutterView, params);
     }
 
     private void startTrayAnimation(WindowManager.LayoutParams params) {
