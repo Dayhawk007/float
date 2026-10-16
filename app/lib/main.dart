@@ -128,21 +128,16 @@ class _SnippetHomeState extends State<SnippetHome> {
   PairedDevice? _pairedDevice;
   bool _syncing = false;
   Timer? _syncTimer;
-  StreamSubscription<dynamic>? _overlayUpdates;
 
   @override
   void initState() {
     super.initState();
-    _overlayUpdates = FlutterOverlayWindow.overlayListener.listen((event) {
-      if (event == 'clipboard-saved') unawaited(_load());
-    });
     _load();
   }
 
   @override
   void dispose() {
     _clipboardHistory?.dispose();
-    _overlayUpdates?.cancel();
     _syncTimer?.cancel();
     _searchController.dispose();
     super.dispose();
@@ -422,6 +417,36 @@ class _SnippetHomeState extends State<SnippetHome> {
     }
   }
 
+  Future<void> _showClipboardShelf() async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: FloatTheme.paper,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
+          side: const BorderSide(color: FloatTheme.line),
+        ),
+        title: const Text('Latest pastes'),
+        content: SizedBox(
+          width: 420,
+          height: 380,
+          child: _ClipboardShelf(
+            entries: _clipboardEntries,
+            onCopy: (entry) => FloatClipboard.copy(entry.text),
+            onSave: _saveClipboardEntry,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Done'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _showOverlay() async {
     final permitted = await FlutterOverlayWindow.isPermissionGranted();
     final granted =
@@ -589,17 +614,9 @@ class _SnippetHomeState extends State<SnippetHome> {
                   child: _ClipboardSetting(
                     enabled: _clipboardHistoryEnabled,
                     onChanged: _setClipboardHistory,
+                    onOpen: _showClipboardShelf,
                   ),
                 ),
-                if (_clipboardHistoryEnabled && _clipboardEntries.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                    child: _ClipboardShelf(
-                      entries: _clipboardEntries,
-                      onCopy: (entry) => FloatClipboard.copy(entry.text),
-                      onSave: _saveClipboardEntry,
-                    ),
-                  ),
                 Expanded(
                   child: AnimatedSwitcher(
                     duration: FloatTheme.shortMotion,
@@ -885,10 +902,15 @@ class _EmptyState extends StatelessWidget {
 }
 
 class _ClipboardSetting extends StatelessWidget {
-  const _ClipboardSetting({required this.enabled, required this.onChanged});
+  const _ClipboardSetting({
+    required this.enabled,
+    required this.onChanged,
+    required this.onOpen,
+  });
 
   final bool enabled;
   final ValueChanged<bool> onChanged;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) => AnimatedContainer(
@@ -919,6 +941,11 @@ class _ClipboardSetting extends StatelessWidget {
             ],
           ),
         ),
+        IconButton(
+          tooltip: 'Latest pastes',
+          onPressed: enabled ? onOpen : null,
+          icon: const Icon(Icons.content_paste_search_rounded, size: 20),
+        ),
         Switch.adaptive(value: enabled, onChanged: onChanged),
       ],
     ),
@@ -938,7 +965,6 @@ class _ClipboardShelf extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    constraints: const BoxConstraints(maxHeight: 190),
     decoration: BoxDecoration(
       color: Colors.white,
       borderRadius: BorderRadius.circular(16),
@@ -959,28 +985,40 @@ class _ClipboardShelf extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: ListView.builder(
-            itemCount: entries.length,
-            itemBuilder: (context, index) {
-              final entry = entries[index];
-              return ListTile(
-                dense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14),
-                leading: const Icon(Icons.content_paste_rounded, size: 18),
-                title: Text(
-                  entry.text,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+          child: entries.isEmpty
+              ? const Center(
+                  child: Text(
+                    'Copy text while Float is open\nto see it here.',
+                    textAlign: TextAlign.center,
+                  ),
+                )
+              : ListView.builder(
+                  itemCount: entries.length,
+                  itemBuilder: (context, index) {
+                    final entry = entries[index];
+                    return ListTile(
+                      dense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                      ),
+                      leading: const Icon(
+                        Icons.content_paste_rounded,
+                        size: 18,
+                      ),
+                      title: Text(
+                        entry.text,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      onTap: () => onCopy(entry),
+                      trailing: IconButton(
+                        tooltip: 'Save as note',
+                        icon: const Icon(Icons.add_rounded, size: 21),
+                        onPressed: () => onSave(entry),
+                      ),
+                    );
+                  },
                 ),
-                onTap: () => onCopy(entry),
-                trailing: IconButton(
-                  tooltip: 'Save as note',
-                  icon: const Icon(Icons.bookmark_add_outlined, size: 19),
-                  onPressed: () => onSave(entry),
-                ),
-              );
-            },
-          ),
         ),
       ],
     ),

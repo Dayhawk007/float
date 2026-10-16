@@ -7,7 +7,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'main.dart';
 import 'float_theme.dart';
-import 'clipboard_history.dart';
 
 class FloatOverlay extends StatefulWidget {
   const FloatOverlay({super.key});
@@ -18,7 +17,6 @@ class FloatOverlay extends StatefulWidget {
 
 class _FloatOverlayState extends State<FloatOverlay> {
   List<Snippet> _snippets = [];
-  List<ClipboardEntry> _clipboardEntries = [];
   StreamSubscription<dynamic>? _updates;
   bool _expanded = false;
 
@@ -51,11 +49,9 @@ class _FloatOverlayState extends State<FloatOverlay> {
               .map((item) => Snippet.fromJson(item as Map<String, dynamic>))
               .where((snippet) => snippet.pinned)
               .toList();
-    final clipboardEntries = await readClipboardEntries();
     if (mounted) {
       setState(() {
         _snippets = snippets;
-        _clipboardEntries = clipboardEntries;
       });
     }
   }
@@ -71,33 +67,8 @@ class _FloatOverlayState extends State<FloatOverlay> {
   }
 
   Future<void> _copy(Snippet snippet) async {
-    await _copyText(snippet.body);
-  }
-
-  Future<void> _copyText(String text) async {
-    await FlutterOverlayWindow.copyToClipboard(text);
+    await FlutterOverlayWindow.copyToClipboard(snippet.body);
     await _collapse();
-  }
-
-  Future<void> _saveClipboard(ClipboardEntry entry) async {
-    final preferences = await SharedPreferences.getInstance();
-    final raw = preferences.getString(snippetStorageKey);
-    final snippets = raw == null
-        ? <Map<String, dynamic>>[]
-        : (jsonDecode(raw) as List<dynamic>)
-              .cast<Map<String, dynamic>>()
-              .toList();
-    snippets.add({
-      'id': DateTime.now().microsecondsSinceEpoch.toString(),
-      'title': 'Saved paste',
-      'body': entry.text,
-      'updatedAt': DateTime.now().toIso8601String(),
-      'createdAt': DateTime.now().toIso8601String(),
-      'pinned': false,
-    });
-    await preferences.setString(snippetStorageKey, jsonEncode(snippets));
-    await FlutterOverlayWindow.shareData('clipboard-saved');
-    await _load();
   }
 
   @override
@@ -113,11 +84,8 @@ class _FloatOverlayState extends State<FloatOverlay> {
             ? _ExpandedOverlay(
                 key: const ValueKey('expanded'),
                 snippets: _snippets,
-                clipboardEntries: _clipboardEntries,
                 onCollapse: _collapse,
                 onCopy: _copy,
-                onCopyText: _copyText,
-                onSaveClipboard: _saveClipboard,
               )
             : const _OverlayHandle(key: ValueKey('handle')),
       ),
@@ -147,18 +115,12 @@ class _ExpandedOverlay extends StatelessWidget {
   const _ExpandedOverlay({
     super.key,
     required this.snippets,
-    required this.clipboardEntries,
     required this.onCollapse,
     required this.onCopy,
-    required this.onCopyText,
-    required this.onSaveClipboard,
   });
   final List<Snippet> snippets;
-  final List<ClipboardEntry> clipboardEntries;
   final VoidCallback onCollapse;
   final Future<void> Function(Snippet snippet) onCopy;
-  final Future<void> Function(String text) onCopyText;
-  final Future<void> Function(ClipboardEntry entry) onSaveClipboard;
 
   @override
   Widget build(BuildContext context) => SafeArea(
@@ -180,7 +142,7 @@ class _ExpandedOverlay extends StatelessWidget {
                 const SizedBox(width: 9),
                 Expanded(
                   child: Text(
-                    snippets.isEmpty && clipboardEntries.isEmpty
+                    snippets.isEmpty
                         ? 'FLOAT  ·  NOTHING SAVED YET'
                         : 'FLOAT  ·  TAP TO COPY',
                     style: const TextStyle(
@@ -201,7 +163,7 @@ class _ExpandedOverlay extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: snippets.isEmpty && clipboardEntries.isEmpty
+            child: snippets.isEmpty
                 ? const Center(
                     child: Padding(
                       padding: EdgeInsets.all(16),
@@ -247,35 +209,6 @@ class _ExpandedOverlay extends StatelessWidget {
                               size: 17,
                             ),
                             onTap: () => onCopy(snippet),
-                          ),
-                      ],
-                      if (clipboardEntries.isNotEmpty) ...[
-                        const _OverlaySectionLabel('LATEST PASTES'),
-                        for (final entry in clipboardEntries)
-                          ListTile(
-                            dense: true,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 18,
-                              vertical: 3,
-                            ),
-                            leading: const Icon(
-                              Icons.content_paste_rounded,
-                              size: 18,
-                            ),
-                            title: Text(
-                              entry.text,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            trailing: IconButton(
-                              tooltip: 'Save as note',
-                              icon: const Icon(
-                                Icons.bookmark_add_outlined,
-                                size: 18,
-                              ),
-                              onPressed: () => onSaveClipboard(entry),
-                            ),
-                            onTap: () => onCopyText(entry.text),
                           ),
                       ],
                     ],

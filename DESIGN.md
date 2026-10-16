@@ -23,6 +23,7 @@ Float should feel calm, immediate, and lightweight: a quiet utility that is read
 - Preserve generous whitespace and a clear primary action. A screen should not feel like a dashboard.
 - Keep the main app's content horizontally aligned on a simple 20 px rhythm.
 - Use one strong visual priority per view: an action, a current note, or a small set of pinned notes.
+- Keep secondary, ephemeral collections (such as clipboard history) out of the main note list; reveal them from a compact adjacent icon in a focused modal.
 - Pinned content may use an inverted near-black surface to signal its elevated usefulness; ordinary content remains light.
 - Empty states should be brief, practical, and local-first in tone. They should guide the next action without adding decoration.
 
