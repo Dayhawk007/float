@@ -102,6 +102,7 @@ export async function startPairingAgent(options: { host?: string; port?: number;
   const expiresAt = Date.now() + 10 * 60 * 1000;
   let manualCodeAttempts = 0;
   const registry = new DeviceRegistry();
+  const restoredDeviceCount = (await registry.read()).devices.length;
   const store = new FloatStore();
   const server = createServer(async (request, response) => {
     const requestId = randomUUID().slice(0, 8);
@@ -168,6 +169,7 @@ export async function startPairingAgent(options: { host?: string; port?: number;
   const pairingUri = `float://pair?url=${encodeURIComponent(agentUrl)}&token=${encodeURIComponent(oneTimeToken)}&v=1`;
   console.log(`Float paired-device agent listening at ${agentUrl}`);
   log('agent.started', { agentUrl, host, port, dataPath: process.env.FLOAT_HOME ?? join(homedir(), '.float') });
+  log('pairing.registry.restored', { pairedDeviceCount: restoredDeviceCount });
   console.log('Scan this QR code in Float within 10 minutes. Keep this terminal open while syncing.');
   qrcode.generate(pairingUri, { small: true });
   console.log(`Pairing code: ${pairingUri}`);

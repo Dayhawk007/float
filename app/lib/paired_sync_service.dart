@@ -6,6 +6,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
 const _pairedDeviceKey = 'float.paired-device.v1';
+const _networkTimeout = Duration(seconds: 5);
 
 void _log(String event, [Map<String, Object?> details = const {}]) {
   final message = jsonEncode({'event': event, ...details});
@@ -177,7 +178,9 @@ class PairedSyncService {
     _log('sync.pull.started', {'agentUrl': endpoint.origin});
     late http.Response response;
     try {
-      response = await _client.get(endpoint, headers: _headers(device));
+      response = await _client
+          .get(endpoint, headers: _headers(device))
+          .timeout(_networkTimeout);
     } catch (error) {
       _log('sync.pull.network_failed', {
         'agentUrl': endpoint.origin,
@@ -209,11 +212,9 @@ class PairedSyncService {
       '/v1/snippets/${Uri.encodeComponent(snippet['id']! as String)}',
     );
     _log('sync.push.started', {'agentUrl': endpoint.origin});
-    final response = await _client.put(
-      endpoint,
-      headers: _headers(device),
-      body: jsonEncode(snippet),
-    );
+    final response = await _client
+        .put(endpoint, headers: _headers(device), body: jsonEncode(snippet))
+        .timeout(_networkTimeout);
     if (response.statusCode != 200) {
       _log('sync.push.failed', {'status': response.statusCode});
       throw Exception('Could not sync the note.');
@@ -227,7 +228,9 @@ class PairedSyncService {
       '/v1/snippets/${Uri.encodeComponent(id)}',
     );
     _log('sync.delete.started', {'agentUrl': endpoint.origin});
-    final response = await _client.delete(endpoint, headers: _headers(device));
+    final response = await _client
+        .delete(endpoint, headers: _headers(device))
+        .timeout(_networkTimeout);
     if (response.statusCode != 204 && response.statusCode != 404) {
       _log('sync.delete.failed', {'status': response.statusCode});
       throw Exception('Could not delete the synced note.');

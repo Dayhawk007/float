@@ -15,6 +15,7 @@ import 'paired_sync_service.dart';
 const snippetStorageKey = 'float.snippets.v1';
 const clipboardHistoryEnabledKey = 'float.clipboard-history-enabled.v1';
 const syncPollInterval = Duration(seconds: 5);
+const notesPageSize = 20;
 
 void main() => runApp(const FloatApp());
 
@@ -119,6 +120,7 @@ class SnippetHome extends StatefulWidget {
 
 class _SnippetHomeState extends State<SnippetHome> {
   final _searchController = TextEditingController();
+  final _notesScrollController = ScrollController();
   List<Snippet> _snippets = [];
   List<ClipboardEntry> _clipboardEntries = [];
   bool _loading = true;
@@ -128,6 +130,7 @@ class _SnippetHomeState extends State<SnippetHome> {
   PairedDevice? _pairedDevice;
   bool _syncing = false;
   Timer? _syncTimer;
+  int _visibleNoteCount = notesPageSize;
 
   @override
   void initState() {
@@ -140,6 +143,7 @@ class _SnippetHomeState extends State<SnippetHome> {
     _clipboardHistory?.dispose();
     _syncTimer?.cancel();
     _searchController.dispose();
+    _notesScrollController.dispose();
     super.dispose();
   }
 
@@ -500,6 +504,10 @@ class _SnippetHomeState extends State<SnippetHome> {
     if (result != null) await _upsert(result);
   }
 
+  void _showMoreNotes() {
+    setState(() => _visibleNoteCount += notesPageSize);
+  }
+
   @override
   Widget build(BuildContext context) {
     final query = _searchController.text.trim().toLowerCase();
@@ -518,6 +526,8 @@ class _SnippetHomeState extends State<SnippetHome> {
                 ? (b.pinned ? 1 : -1)
                 : b.updatedAt.compareTo(a.updatedAt),
           );
+    final pagedNotes = visible.take(_visibleNoteCount).toList();
+    final hasMoreNotes = pagedNotes.length < visible.length;
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: 82,
@@ -606,7 +616,8 @@ class _SnippetHomeState extends State<SnippetHome> {
                       hintText: 'Search notes',
                       prefixIcon: Icon(Icons.search_rounded, size: 20),
                     ),
-                    onChanged: (_) => setState(() {}),
+                    onChanged: (_) =>
+                        setState(() => _visibleNoteCount = notesPageSize),
                   ),
                 ),
                 Padding(
@@ -627,21 +638,40 @@ class _SnippetHomeState extends State<SnippetHome> {
                             key: const ValueKey('empty'),
                             onCreate: () => _edit(),
                           )
-                        : ListView.separated(
-                            key: const ValueKey('notes'),
-                            padding: const EdgeInsets.fromLTRB(20, 4, 20, 108),
-                            itemCount: visible.length,
-                            separatorBuilder: (_, _) =>
-                                const SizedBox(height: 10),
-                            itemBuilder: (context, index) => _SnippetCard(
-                              snippet: visible[index],
-                              onEdit: () => _edit(visible[index]),
-                              onPin: () => _upsert(
-                                visible[index].copyWith(
-                                  pinned: !visible[index].pinned,
-                                ),
+                        : Scrollbar(
+                            controller: _notesScrollController,
+                            thumbVisibility: true,
+                            child: ListView.separated(
+                              key: const ValueKey('notes'),
+                              controller: _notesScrollController,
+                              padding: const EdgeInsets.fromLTRB(
+                                20,
+                                4,
+                                28,
+                                108,
                               ),
-                              onDelete: () => _delete(visible[index].id),
+                              itemCount:
+                                  pagedNotes.length + (hasMoreNotes ? 1 : 0),
+                              separatorBuilder: (_, _) =>
+                                  const SizedBox(height: 10),
+                              itemBuilder: (context, index) {
+                                if (index == pagedNotes.length) {
+                                  return _PaginationControl(
+                                    shown: pagedNotes.length,
+                                    total: visible.length,
+                                    onShowMore: _showMoreNotes,
+                                  );
+                                }
+                                final snippet = pagedNotes[index];
+                                return _SnippetCard(
+                                  snippet: snippet,
+                                  onEdit: () => _edit(snippet),
+                                  onPin: () => _upsert(
+                                    snippet.copyWith(pinned: !snippet.pinned),
+                                  ),
+                                  onDelete: () => _delete(snippet.id),
+                                );
+                              },
                             ),
                           ),
                   ),
@@ -831,6 +861,25 @@ class _SnippetCard extends StatelessWidget {
         ),
       ),
     ),
+  );
+}
+
+class _PaginationControl extends StatelessWidget {
+  const _PaginationControl({
+    required this.shown,
+    required this.total,
+    required this.onShowMore,
+  });
+
+  final int shown;
+  final int total;
+  final VoidCallback onShowMore;
+
+  @override
+  Widget build(BuildContext context) => OutlinedButton.icon(
+    onPressed: onShowMore,
+    icon: const Icon(Icons.expand_more_rounded),
+    label: Text('SHOW MORE · $shown OF $total'),
   );
 }
 
