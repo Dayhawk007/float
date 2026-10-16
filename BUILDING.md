@@ -2,6 +2,8 @@
 
 This file is the running local-development record for Float. It is intentionally kept in the repository so product scope, implementation decisions, and unfinished work remain visible to future contributors and AI clients.
 
+For every client-side change that affects UI or interaction, follow `DESIGN.md` and update it in the same commit if the design direction changes.
+
 ## Current local milestone
 
 ### Implemented

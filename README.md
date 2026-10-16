@@ -7,6 +7,7 @@ Float is a local-first Android notes/clipboard utility with a desktop CLI and lo
 - `app/` — Flutter Android application with local snippet CRUD, pinning, search, and device-local persistence.
 - `cli/` — TypeScript CLI plus the local stdio MCP server.
 - `PRD.md` — product scope and phased roadmap.
+- `DESIGN.md` — required client-side design and interaction system.
 
 ## Run locally
 
