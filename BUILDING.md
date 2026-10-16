@@ -14,6 +14,7 @@ This file is the running local-development record for Float. It is intentionally
 - A draggable side handle that expands to pinned notes only when the user taps it; Android owns bounded dragging without auto-snapping, while Flutter receives ordinary taps, and pin/unpin changes refresh an active overlay.
 - The overlay dependency is vendored locally with strict Android `WindowManager` bounds, so drag and resize keep the handle fully visible on the display.
 - Releasing the compact handle snaps it to the nearest vertical screen edge; its native touch listener emits an explicit tap event to expand the notes panel.
+- The Android app and floating panel use a monochrome, low-elevation visual language: warm-white surfaces, near-black controls, fine borders, compact labels, and restrained state transitions.
 - The overlay reloads its isolated local-preferences cache when notes change, so new pins appear without restarting; the handle has no elevation/shadow.
 - Opt-in clipboard watcher. Clipboard collection is disabled by default and remains local to the device.
 

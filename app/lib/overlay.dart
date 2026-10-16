@@ -7,6 +7,7 @@ import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'main.dart';
+import 'float_theme.dart';
 
 class FloatOverlay extends StatefulWidget {
   const FloatOverlay({super.key});
@@ -70,32 +71,40 @@ class _FloatOverlayState extends State<FloatOverlay> {
   @override
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
+    theme: FloatTheme.data,
     home: Material(
       color: Colors.transparent,
-      child: _expanded
-          ? _ExpandedOverlay(
-              snippets: _snippets,
-              onCollapse: _collapse,
-              onCopy: _copy,
-            )
-          : const _OverlayHandle(),
+      child: AnimatedSwitcher(
+        duration: FloatTheme.shortMotion,
+        switchInCurve: FloatTheme.gentleCurve,
+        child: _expanded
+            ? _ExpandedOverlay(
+                key: const ValueKey('expanded'),
+                snippets: _snippets,
+                onCollapse: _collapse,
+                onCopy: _copy,
+              )
+            : const _OverlayHandle(key: ValueKey('handle')),
+      ),
     ),
   );
 }
 
 class _OverlayHandle extends StatelessWidget {
-  const _OverlayHandle();
+  const _OverlayHandle({super.key});
 
   @override
   Widget build(BuildContext context) => Center(
     child: Material(
-      color: const Color(0xFF3157D5),
+      color: FloatTheme.ink,
       elevation: 0,
-      shape: const CircleBorder(),
+      shape: const CircleBorder(
+        side: BorderSide(color: Colors.white, width: 1.5),
+      ),
       child: const SizedBox(
         width: 64,
         height: 64,
-        child: Icon(Icons.sticky_note_2_outlined, color: Colors.white),
+        child: Icon(Icons.notes_rounded, color: Colors.white, size: 25),
       ),
     ),
   );
@@ -103,6 +112,7 @@ class _OverlayHandle extends StatelessWidget {
 
 class _ExpandedOverlay extends StatelessWidget {
   const _ExpandedOverlay({
+    super.key,
     required this.snippets,
     required this.onCollapse,
     required this.onCopy,
@@ -113,34 +123,51 @@ class _ExpandedOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SafeArea(
-    child: Card(
-      margin: const EdgeInsets.all(8),
+    child: Material(
+      color: FloatTheme.paper,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: const BorderSide(color: FloatTheme.ink),
+      ),
       clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
-          ListTile(
-            dense: true,
-            leading: const Icon(Icons.sticky_note_2_outlined),
-            title: const Text('Float'),
-            subtitle: Text(
-              snippets.isEmpty
-                  ? 'Pin notes in Float to see them here'
-                  : 'Tap a note to copy',
-            ),
-            trailing: IconButton(
-              tooltip: 'Collapse',
-              icon: const Icon(Icons.chevron_right),
-              onPressed: onCollapse,
+          Container(
+            color: FloatTheme.ink,
+            padding: const EdgeInsets.fromLTRB(18, 10, 8, 10),
+            child: Row(
+              children: [
+                const Icon(Icons.notes_rounded, color: Colors.white, size: 19),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                    snippets.isEmpty
+                        ? 'FLOAT  ·  NO PINNED NOTES'
+                        : 'FLOAT  ·  TAP TO COPY',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Collapse',
+                  color: Colors.white,
+                  icon: const Icon(Icons.close_rounded, size: 19),
+                  onPressed: onCollapse,
+                ),
+              ],
             ),
           ),
-          const Divider(height: 1),
           Expanded(
             child: snippets.isEmpty
                 ? const Center(
                     child: Padding(
                       padding: EdgeInsets.all(16),
                       child: Text(
-                        'No pinned snippets yet.',
+                        'Pin a note in Float\nto keep it here.',
                         textAlign: TextAlign.center,
                       ),
                     ),
@@ -149,15 +176,25 @@ class _ExpandedOverlay extends StatelessWidget {
                     itemCount: snippets.length,
                     itemBuilder: (context, index) => ListTile(
                       dense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 3,
+                      ),
                       title: Text(
                         snippets[index].title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
                       subtitle: Text(
                         snippets[index].body,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: FloatTheme.mutedInk),
+                      ),
+                      trailing: const Icon(
+                        Icons.content_copy_outlined,
+                        size: 17,
                       ),
                       onTap: () => onCopy(snippets[index]),
                     ),

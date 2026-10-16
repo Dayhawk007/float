@@ -9,8 +9,8 @@ void main() {
     await tester.pumpWidget(const FloatApp());
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
-    expect(find.text('Float'), findsOneWidget);
-    expect(find.text('Create your first snippet'), findsOneWidget);
+    expect(find.text('FLOAT'), findsOneWidget);
+    expect(find.text('Create your first note'), findsOneWidget);
   });
 
   testWidgets('saves a snippet without disposing the editor early', (
@@ -20,7 +20,7 @@ void main() {
     await tester.pumpWidget(const FloatApp());
     await tester.pump(const Duration(milliseconds: 100));
 
-    await tester.tap(find.text('New'));
+    await tester.tap(find.text('NEW NOTE'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).at(0), 'Portfolio');
     await tester.enterText(find.byType(TextField).at(1), 'https://example.com');

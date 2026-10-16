@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'clipboard_history.dart';
+import 'float_theme.dart';
 import 'overlay.dart';
 
 const snippetStorageKey = 'float.snippets.v1';
@@ -59,10 +60,7 @@ class FloatApp extends StatelessWidget {
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
     title: 'Float',
-    theme: ThemeData(
-      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF3157D5)),
-      useMaterial3: true,
-    ),
+    theme: FloatTheme.data,
     home: const SnippetHome(),
   );
 }
@@ -220,59 +218,101 @@ class _SnippetHomeState extends State<SnippetHome> {
           );
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Float'),
+        toolbarHeight: 82,
+        title: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'FLOAT',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 2.8,
+              ),
+            ),
+            SizedBox(height: 3),
+            Text(
+              'A local shelf for what matters',
+              style: TextStyle(fontSize: 12, color: FloatTheme.mutedInk),
+            ),
+          ],
+        ),
         actions: [
-          IconButton(
-            tooltip: 'Show floating overlay',
-            onPressed: _showOverlay,
-            icon: const Icon(Icons.layers_outlined),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                border: Border.all(color: FloatTheme.line),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: IconButton(
+                tooltip: 'Show floating overlay',
+                onPressed: _showOverlay,
+                icon: const Icon(Icons.open_in_new_rounded, size: 19),
+              ),
+            ),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _edit,
         icon: const Icon(Icons.add),
-        label: const Text('New'),
+        label: const Text(
+          'NEW NOTE',
+          style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 1.1),
+        ),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                  child: SearchBar(
+                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
+                  child: TextField(
                     controller: _searchController,
-                    hintText: 'Search your snippets',
-                    leading: const Icon(Icons.search),
+                    decoration: const InputDecoration(
+                      hintText: 'Search notes',
+                      prefixIcon: Icon(Icons.search_rounded, size: 20),
+                    ),
                     onChanged: (_) => setState(() {}),
                   ),
                 ),
-                SwitchListTile.adaptive(
-                  value: _clipboardHistoryEnabled,
-                  onChanged: _setClipboardHistory,
-                  title: const Text('Save clipboard history'),
-                  subtitle: const Text(
-                    'Off by default. Saves copied plain text locally while Float is running.',
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                  child: _ClipboardSetting(
+                    enabled: _clipboardHistoryEnabled,
+                    onChanged: _setClipboardHistory,
                   ),
                 ),
                 Expanded(
-                  child: visible.isEmpty
-                      ? _EmptyState(onCreate: () => _edit())
-                      : ListView.separated(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-                          itemCount: visible.length,
-                          separatorBuilder: (_, _) => const SizedBox(height: 8),
-                          itemBuilder: (context, index) => _SnippetCard(
-                            snippet: visible[index],
-                            onEdit: () => _edit(visible[index]),
-                            onPin: () => _upsert(
-                              visible[index].copyWith(
-                                pinned: !visible[index].pinned,
+                  child: AnimatedSwitcher(
+                    duration: FloatTheme.shortMotion,
+                    switchInCurve: FloatTheme.gentleCurve,
+                    switchOutCurve: Curves.easeIn,
+                    child: visible.isEmpty
+                        ? _EmptyState(
+                            key: const ValueKey('empty'),
+                            onCreate: () => _edit(),
+                          )
+                        : ListView.separated(
+                            key: const ValueKey('notes'),
+                            padding: const EdgeInsets.fromLTRB(20, 4, 20, 108),
+                            itemCount: visible.length,
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(height: 10),
+                            itemBuilder: (context, index) => _SnippetCard(
+                              snippet: visible[index],
+                              onEdit: () => _edit(visible[index]),
+                              onPin: () => _upsert(
+                                visible[index].copyWith(
+                                  pinned: !visible[index].pinned,
+                                ),
                               ),
+                              onDelete: () => _delete(visible[index].id),
                             ),
-                            onDelete: () => _delete(visible[index].id),
                           ),
-                        ),
+                  ),
                 ),
               ],
             ),
@@ -324,7 +364,13 @@ class _SnippetEditorDialogState extends State<_SnippetEditorDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: Text(widget.existing == null ? 'New snippet' : 'Edit snippet'),
+    backgroundColor: FloatTheme.paper,
+    surfaceTintColor: Colors.transparent,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(22),
+      side: const BorderSide(color: FloatTheme.line),
+    ),
+    title: Text(widget.existing == null ? 'New note' : 'Edit note'),
     content: SizedBox(
       width: 420,
       child: Column(
@@ -370,40 +416,92 @@ class _SnippetCard extends StatelessWidget {
   final VoidCallback onPin;
   final VoidCallback onDelete;
   @override
-  Widget build(BuildContext context) => Card(
-    child: ListTile(
-      onTap: onEdit,
-      title: Text(snippet.title),
-      subtitle: Text(
-        snippet.body,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
+  Widget build(BuildContext context) => AnimatedContainer(
+    duration: FloatTheme.shortMotion,
+    curve: FloatTheme.gentleCurve,
+    decoration: BoxDecoration(
+      color: snippet.pinned ? FloatTheme.ink : Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(
+        color: snippet.pinned ? FloatTheme.ink : FloatTheme.line,
       ),
-      leading: Icon(
-        snippet.pinned ? Icons.push_pin : Icons.note_outlined,
-        color: snippet.pinned ? const Color(0xFF3157D5) : null,
-      ),
-      trailing: PopupMenuButton<String>(
-        onSelected: (value) {
-          if (value == 'edit') onEdit();
-          if (value == 'pin') onPin();
-          if (value == 'delete') onDelete();
-        },
-        itemBuilder: (_) => [
-          const PopupMenuItem(value: 'edit', child: Text('Edit')),
-          PopupMenuItem(
-            value: 'pin',
-            child: Text(snippet.pinned ? 'Unpin' : 'Pin'),
+    ),
+    child: Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onEdit,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 3),
+                child: Icon(
+                  snippet.pinned ? Icons.push_pin_rounded : Icons.note_outlined,
+                  color: snippet.pinned ? Colors.white : FloatTheme.ink,
+                  size: 19,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      snippet.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: snippet.pinned ? Colors.white : FloatTheme.ink,
+                      ),
+                    ),
+                    if (snippet.body.isNotEmpty) ...[
+                      const SizedBox(height: 5),
+                      Text(
+                        snippet.body,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13,
+                          height: 1.3,
+                          color: snippet.pinned
+                              ? const Color(0xFFD7D7D2)
+                              : FloatTheme.mutedInk,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              PopupMenuButton<String>(
+                iconColor: snippet.pinned ? Colors.white : FloatTheme.ink,
+                onSelected: (value) {
+                  if (value == 'edit') onEdit();
+                  if (value == 'pin') onPin();
+                  if (value == 'delete') onDelete();
+                },
+                itemBuilder: (_) => [
+                  const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                  PopupMenuItem(
+                    value: 'pin',
+                    child: Text(snippet.pinned ? 'Unpin' : 'Pin'),
+                  ),
+                  const PopupMenuItem(value: 'delete', child: Text('Delete')),
+                ],
+              ),
+            ],
           ),
-          const PopupMenuItem(value: 'delete', child: Text('Delete')),
-        ],
+        ),
       ),
     ),
   );
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.onCreate});
+  const _EmptyState({super.key, required this.onCreate});
   final VoidCallback onCreate;
   @override
   Widget build(BuildContext context) => Center(
@@ -412,25 +510,68 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.sticky_note_2_outlined, size: 56),
+          const Icon(Icons.sticky_note_2_outlined, size: 48),
           const SizedBox(height: 16),
           Text(
-            'Keep what you need within reach.',
-            style: Theme.of(context).textTheme.titleLarge,
+            'A calmer place for your notes.',
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 8),
           const Text(
-            'Create a local snippet for an answer, link, template, or anything you copy often.',
+            'Keep an answer, link, template, or anything you reach for often — only on this device.',
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 20),
           FilledButton.icon(
             onPressed: onCreate,
             icon: const Icon(Icons.add),
-            label: const Text('Create your first snippet'),
+            label: const Text('Create your first note'),
           ),
         ],
       ),
+    ),
+  );
+}
+
+class _ClipboardSetting extends StatelessWidget {
+  const _ClipboardSetting({required this.enabled, required this.onChanged});
+
+  final bool enabled;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) => AnimatedContainer(
+    duration: FloatTheme.shortMotion,
+    padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+    decoration: BoxDecoration(
+      color: enabled ? FloatTheme.soft : Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: enabled ? FloatTheme.ink : FloatTheme.line),
+    ),
+    child: Row(
+      children: [
+        const Icon(Icons.content_paste_outlined, size: 19),
+        const SizedBox(width: 12),
+        const Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Clipboard history',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              SizedBox(height: 2),
+              Text(
+                'Optional and saved locally.',
+                style: TextStyle(fontSize: 12, color: FloatTheme.mutedInk),
+              ),
+            ],
+          ),
+        ),
+        Switch.adaptive(value: enabled, onChanged: onChanged),
+      ],
     ),
   );
 }
