@@ -185,7 +185,7 @@ class _SnippetHomeState extends State<SnippetHome> {
       height: initialSize,
       width: initialSize,
       alignment: OverlayAlignment.centerRight,
-      enableDrag: false,
+      enableDrag: true,
       positionGravity: PositionGravity.none,
       overlayTitle: 'Float overlay active',
       overlayContent: 'Pinned notes are ready to copy.',

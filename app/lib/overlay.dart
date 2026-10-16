@@ -47,12 +47,12 @@ class _FloatOverlayState extends State<FloatOverlay> {
   }
 
   Future<void> _expand() async {
-    await FlutterOverlayWindow.resizeOverlay(340, 320, false);
+    await FlutterOverlayWindow.resizeOverlay(340, 320, true);
     if (mounted) setState(() => _expanded = true);
   }
 
   Future<void> _collapse() async {
-    await FlutterOverlayWindow.resizeOverlay(72, 72, false);
+    await FlutterOverlayWindow.resizeOverlay(72, 72, true);
     if (mounted) setState(() => _expanded = false);
   }
 
@@ -77,36 +77,9 @@ class _FloatOverlayState extends State<FloatOverlay> {
   );
 }
 
-class _OverlayHandle extends StatefulWidget {
+class _OverlayHandle extends StatelessWidget {
   const _OverlayHandle({required this.onTap});
   final VoidCallback onTap;
-
-  @override
-  State<_OverlayHandle> createState() => _OverlayHandleState();
-}
-
-class _OverlayHandleState extends State<_OverlayHandle> {
-  OverlayPosition? _startPosition;
-  Offset? _pointerStart;
-
-  Future<void> _beginDrag(DragStartDetails details) async {
-    _pointerStart = details.globalPosition;
-    _startPosition = await FlutterOverlayWindow.getOverlayPosition();
-  }
-
-  void _drag(DragUpdateDetails details) {
-    final startPosition = _startPosition;
-    final pointerStart = _pointerStart;
-    if (startPosition == null || pointerStart == null) return;
-    final delta = details.globalPosition - pointerStart;
-    final density = MediaQuery.devicePixelRatioOf(context);
-    FlutterOverlayWindow.moveOverlay(
-      OverlayPosition(
-        startPosition.x + delta.dx * density,
-        startPosition.y + delta.dy * density,
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) => Center(
@@ -114,11 +87,9 @@ class _OverlayHandleState extends State<_OverlayHandle> {
       color: const Color(0xFF3157D5),
       elevation: 0,
       shape: const CircleBorder(),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
-        onPanStart: _beginDrag,
-        onPanUpdate: _drag,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
         child: const SizedBox(
           width: 64,
           height: 64,

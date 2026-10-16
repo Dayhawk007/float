@@ -11,7 +11,7 @@ This file is the running local-development record for Float. It is intentionally
 - TypeScript CLI with a local JSON store and a local stdio MCP server.
 - Android package ID: `com.dayhawk.floatnotes`.
 - Native Android floating-overlay permission and foreground-service wiring.
-- A draggable side handle that expands to pinned notes only when the user taps it; Flutter owns its gesture handling so tap and drag do not conflict, and pin/unpin changes refresh an active overlay.
+- A draggable side handle that expands to pinned notes only when the user taps it; Android owns bounded dragging without auto-snapping, while Flutter receives ordinary taps, and pin/unpin changes refresh an active overlay.
 - The overlay reloads its isolated local-preferences cache when notes change, so new pins appear without restarting; the handle has no elevation/shadow.
 - Opt-in clipboard watcher. Clipboard collection is disabled by default and remains local to the device.
 
