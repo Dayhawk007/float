@@ -34,9 +34,9 @@ class _FloatOverlayState extends State<FloatOverlay> {
   }
 
   Future<void> _load() async {
-    final raw = (await SharedPreferences.getInstance()).getString(
-      snippetStorageKey,
-    );
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.reload();
+    final raw = preferences.getString(snippetStorageKey);
     final snippets = raw == null
         ? <Snippet>[]
         : (jsonDecode(raw) as List<dynamic>)
@@ -112,7 +112,7 @@ class _OverlayHandleState extends State<_OverlayHandle> {
   Widget build(BuildContext context) => Center(
     child: Material(
       color: const Color(0xFF3157D5),
-      elevation: 8,
+      elevation: 0,
       shape: const CircleBorder(),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,

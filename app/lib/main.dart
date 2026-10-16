@@ -179,9 +179,11 @@ class _SnippetHomeState extends State<SnippetHome> {
     final granted =
         permitted || await FlutterOverlayWindow.requestPermission() == true;
     if (!granted) return;
+    if (!mounted) return;
+    final initialSize = (72 * MediaQuery.devicePixelRatioOf(context)).round();
     await FlutterOverlayWindow.showOverlay(
-      height: 72,
-      width: 72,
+      height: initialSize,
+      width: initialSize,
       alignment: OverlayAlignment.centerRight,
       enableDrag: false,
       positionGravity: PositionGravity.none,
