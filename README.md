@@ -9,6 +9,7 @@ Float is a local-first Android notes/clipboard utility with a desktop CLI and lo
 - `PRD.md` — product scope and phased roadmap.
 - `DESIGN.md` — required client-side design and interaction system.
 - `MCP.md` — local MCP setup for Codex, Claude Desktop, and Cursor.
+- `MCP-AGENT-SETUP.md` — agent-readable dynamic setup runbook for any MCP client.
 
 ## Run locally
 
@@ -47,7 +48,7 @@ Keep the `float pair serve` terminal open during pairing. It prints `[float-agen
 
 ### MCP server
 
-See [MCP.md](MCP.md) for Codex, Claude Desktop, and Cursor setup plus the recommended agent workflow.
+See [MCP.md](MCP.md) for Codex, Claude Desktop, and Cursor setup plus the recommended agent workflow. For an agent-driven setup, give the agent [MCP-AGENT-SETUP.md](MCP-AGENT-SETUP.md) and ask it to follow the runbook.
 
 Build the CLI, then configure a compatible client to launch:
 
@@ -60,7 +61,7 @@ The MCP server is local stdio only. It exposes `search_snippets`, `get_snippet`,
 
 ### Clipboard shelf
 
-Clipboard history is opt-in. When enabled, Float keeps the latest 20 text pastes in a local “Latest pastes” shelf. Tapping a paste copies it again; the bookmark action saves it as a normal Float note. Clipboard entries are not silently converted into notes and are not synced unless explicitly saved.
+Clipboard history is opt-in. When enabled, Float keeps the latest 20 text pastes it can observe while the app is open, and reads the current clipboard when Float opens, in a local “Latest pastes” shelf. Tapping a paste copies it again; the bookmark action saves it as a normal Float note. Clipboard entries are not silently converted into notes and are not synced unless explicitly saved. Android prevents ordinary apps from continuously reading clipboard data while they are in the background; full background history would require a user-enabled keyboard or accessibility-service design and is intentionally out of scope.
 
 ## Validation
 

@@ -159,7 +159,10 @@ class _SnippetHomeState extends State<SnippetHome> {
     _clipboardEntries = await readClipboardEntries();
     _clipboardHistoryEnabled =
         preferences.getBool(clipboardHistoryEnabledKey) ?? false;
-    if (_clipboardHistoryEnabled) _startClipboardHistory();
+    if (_clipboardHistoryEnabled) {
+      _startClipboardHistory();
+      unawaited(_captureCurrentClipboard());
+    }
     if (mounted) setState(() => _loading = false);
     unawaited(_restorePairedDevice());
   }
@@ -358,16 +361,15 @@ class _SnippetHomeState extends State<SnippetHome> {
       clipboardHistoryEnabledKey,
       enabled,
     );
+    if (mounted) setState(() => _clipboardHistoryEnabled = enabled);
     if (enabled) {
       _startClipboardHistory();
-      final current = await Clipboard.getData(Clipboard.kTextPlain);
-      if (current?.text != null) await _captureClipboardText(current!.text!);
+      await _captureCurrentClipboard();
     }
     if (!enabled) {
       await _clipboardHistory?.dispose();
       _clipboardHistory = null;
     }
-    if (mounted) setState(() => _clipboardHistoryEnabled = enabled);
   }
 
   Future<void> _captureClipboardText(String text) async {
@@ -386,7 +388,22 @@ class _SnippetHomeState extends State<SnippetHome> {
       _clipboardEntries = _clipboardEntries.take(20).toList();
     }
     await writeClipboardEntries(_clipboardEntries);
+    debugPrint(
+      '[FloatClipboard] shelf.updated count=${_clipboardEntries.length} length=${trimmed.length}',
+    );
     if (mounted) setState(() {});
+  }
+
+  Future<void> _captureCurrentClipboard() async {
+    try {
+      final text = await FloatClipboard.read();
+      debugPrint(
+        '[FloatClipboard] clipboard.read hasText=${text?.isNotEmpty ?? false}',
+      );
+      if (text != null) await _captureClipboardText(text);
+    } on MissingPluginException {
+      // Clipboard reads are only available on Android devices.
+    }
   }
 
   Future<void> _saveClipboardEntry(ClipboardEntry entry) async {
@@ -579,8 +596,7 @@ class _SnippetHomeState extends State<SnippetHome> {
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
                     child: _ClipboardShelf(
                       entries: _clipboardEntries,
-                      onCopy: (entry) =>
-                          Clipboard.setData(ClipboardData(text: entry.text)),
+                      onCopy: (entry) => FloatClipboard.copy(entry.text),
                       onSave: _saveClipboardEntry,
                     ),
                   ),
@@ -897,7 +913,7 @@ class _ClipboardSetting extends StatelessWidget {
               ),
               SizedBox(height: 2),
               Text(
-                'Review recent pastes and save only what you need.',
+                'Keeps recent text while Float is open; save only what you need.',
                 style: TextStyle(fontSize: 12, color: FloatTheme.mutedInk),
               ),
             ],

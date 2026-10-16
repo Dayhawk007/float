@@ -64,3 +64,13 @@ class ClipboardHistoryService {
 
   Future<void> dispose() => _subscription.cancel();
 }
+
+class FloatClipboard {
+  static const _system = MethodChannel('float/system');
+
+  static Future<void> copy(String text) =>
+      _system.invokeMethod<void>('copyToClipboard', {'text': text});
+
+  static Future<String?> read() =>
+      _system.invokeMethod<String>('getClipboardText');
+}

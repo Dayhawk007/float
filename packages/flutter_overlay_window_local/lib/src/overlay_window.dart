@@ -140,6 +140,12 @@ class FlutterOverlayWindow {
     return _res;
   }
 
+  /// Copies [text] through the native overlay service. This works even when
+  /// the overlay's Flutter engine is separate from the app activity.
+  static Future<void> copyToClipboard(String text) async {
+    await _overlayChannel.invokeMethod<void>('copyToClipboard', {'text': text});
+  }
+
   /// Update the overlay size in the screen
   static Future<bool?> resizeOverlay(
     int width,

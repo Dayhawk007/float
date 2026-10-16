@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -76,7 +75,7 @@ class _FloatOverlayState extends State<FloatOverlay> {
   }
 
   Future<void> _copyText(String text) async {
-    await Clipboard.setData(ClipboardData(text: text));
+    await FlutterOverlayWindow.copyToClipboard(text);
     await _collapse();
   }
 

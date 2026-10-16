@@ -5,6 +5,8 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.Configuration;
@@ -149,6 +151,17 @@ public class OverlayService extends Service implements View.OnTouchListener {
                     int height = call.argument("height");
                     boolean enableDrag = call.argument("enableDrag");
                     resizeOverlay(width, height, enableDrag, result);
+                    break;
+                case "copyToClipboard":
+                    String text = call.argument("text");
+                    if (text == null || text.trim().isEmpty()) {
+                        result.error("empty_text", "Nothing to copy.", null);
+                        break;
+                    }
+                    ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                    clipboard.setPrimaryClip(ClipData.newPlainText("Float", text));
+                    Log.d("FloatClipboard", "overlay.clipboard.write length=" + text.length());
+                    result.success(null);
                     break;
             }
         });
