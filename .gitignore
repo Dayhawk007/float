@@ -15,3 +15,9 @@ app/.idea/
 app/ios/Flutter/
 app/macos/Flutter/ephemeral/
 app/windows/flutter/ephemeral/
+/packages/flutter_overlay_window/
+/packages/flutter_overlay_window_local/.vscode/
+/packages/flutter_overlay_window_local/example/
+/packages/flutter_overlay_window_local/test/
+/packages/flutter_overlay_window_local/.metadata
+/packages/flutter_overlay_window_local/analysis_options.yaml

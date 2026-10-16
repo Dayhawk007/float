@@ -89,10 +89,9 @@ packages:
   flutter_overlay_window:
     dependency: "direct main"
     description:
-      name: flutter_overlay_window
-      sha256: "90326bffe7e387703b1c9f1b091d0c1a2183d040272f01a6ef305bbf35d65228"
-      url: "https://pub.dev"
-    source: hosted
+      path: "../packages/flutter_overlay_window_local"
+      relative: true
+    source: path
     version: "1.0.0"
   flutter_test:
     dependency: "direct dev"
