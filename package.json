@@ -4,7 +4,9 @@
   "version": "0.1.0",
   "scripts": {
     "cli:build": "pnpm --dir cli build",
-    "cli:test": "pnpm --dir cli test"
+    "cli:test": "pnpm --dir cli test",
+    "server:build": "pnpm --dir server build",
+    "server:dev": "pnpm --dir server dev"
   },
   "packageManager": "pnpm@9.15.4"
 }

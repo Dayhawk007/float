@@ -182,6 +182,12 @@ Requirements:
 - Keep the API stateless and the data model simple: user, device, snippet, tag, list, sync revision, and revoked token.
 - Do not make the server a dependency for basic local notes/clipboard operation.
 
+#### Local development implementation
+
+- The repository contains a local TypeScript account API used to develop the shared account contract before any deployment.
+- It provides password registration/login, opaque bearer sessions, and user-scoped snippet CRUD. Android keeps a local cache and synchronizes while the app is open; the CLI and its stdio MCP server use the same account store after sign-in.
+- This implementation is not production-ready: it uses a local JSON database and local HTTP for emulator development. TLS, a production database, secure CLI credential storage, email verification, rate limiting, password reset, device/session management, deletion tombstones, and an independent security review are required before any hosted release.
+
 ### Open-source delivery
 
 - Separate the repository into `app/`, `cli/`, `server/`, `mcp/`, shared schema/package modules as appropriate, and `docs/` when implementation starts.

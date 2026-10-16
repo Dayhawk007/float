@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -8,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'clipboard_history.dart';
 import 'float_theme.dart';
 import 'overlay.dart';
+import 'sync_service.dart';
 
 const snippetStorageKey = 'float.snippets.v1';
 const clipboardHistoryEnabledKey = 'float.clipboard-history-enabled.v1';
@@ -77,6 +79,9 @@ class _SnippetHomeState extends State<SnippetHome> {
   bool _loading = true;
   bool _clipboardHistoryEnabled = false;
   ClipboardHistoryService? _clipboardHistory;
+  final _syncService = SyncService();
+  FloatAccountSession? _accountSession;
+  bool _syncing = false;
 
   @override
   void initState() {
@@ -103,6 +108,14 @@ class _SnippetHomeState extends State<SnippetHome> {
         preferences.getBool(clipboardHistoryEnabledKey) ?? false;
     if (_clipboardHistoryEnabled) _startClipboardHistory();
     if (mounted) setState(() => _loading = false);
+    unawaited(_restoreAccountSession());
+  }
+
+  Future<void> _restoreAccountSession() async {
+    final session = await _syncService.session();
+    if (!mounted || session == null) return;
+    setState(() => _accountSession = session);
+    await _syncNow(silent: true);
   }
 
   Future<void> _save() async =>
@@ -121,6 +134,7 @@ class _SnippetHomeState extends State<SnippetHome> {
       }
     });
     await _save();
+    unawaited(_pushSnippet(snippet));
     try {
       if (await FlutterOverlayWindow.isActive()) {
         await FlutterOverlayWindow.shareData('snippets-changed');
@@ -133,6 +147,100 @@ class _SnippetHomeState extends State<SnippetHome> {
   Future<void> _delete(String id) async {
     setState(() => _snippets.removeWhere((snippet) => snippet.id == id));
     await _save();
+    final session = _accountSession;
+    if (session != null) {
+      try {
+        await _syncService.deleteSnippet(session, id);
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _pushSnippet(Snippet snippet) async {
+    final session = _accountSession;
+    if (session == null) return;
+    try {
+      await _syncService.upsertSnippet(session, snippet.toJson());
+    } catch (_) {}
+  }
+
+  Future<void> _syncNow({bool silent = false}) async {
+    final session = _accountSession;
+    if (session == null || _syncing) return;
+    if (mounted) setState(() => _syncing = true);
+    try {
+      final remote = await _syncService.listSnippets(session);
+      final localById = {for (final snippet in _snippets) snippet.id: snippet};
+      final remoteById = <String, Snippet>{};
+      for (final data in remote) {
+        final snippet = Snippet.fromJson(data);
+        remoteById[snippet.id] = snippet;
+        final local = localById[snippet.id];
+        if (local == null || snippet.updatedAt.isAfter(local.updatedAt)) {
+          localById[snippet.id] = snippet;
+        }
+      }
+      for (final snippet in localById.values) {
+        final remoteSnippet = remoteById[snippet.id];
+        if (remoteSnippet == null ||
+            snippet.updatedAt.isAfter(remoteSnippet.updatedAt)) {
+          await _syncService.upsertSnippet(session, snippet.toJson());
+        }
+      }
+      _snippets = localById.values.toList();
+      await _save();
+      if (!silent && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Synced securely to your account.')),
+        );
+      }
+    } catch (error) {
+      if (!silent && mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Sync failed: $error')));
+      }
+    } finally {
+      if (mounted) setState(() => _syncing = false);
+    }
+  }
+
+  Future<void> _showAccount() async {
+    final session = _accountSession;
+    if (session == null) {
+      final result = await showDialog<FloatAccountSession>(
+        context: context,
+        builder: (_) => _AccountDialog(syncService: _syncService),
+      );
+      if (result != null && mounted) {
+        setState(() => _accountSession = result);
+        await _syncNow();
+      }
+      return;
+    }
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Account sync'),
+        content: Text(
+          'Signed in as ${session.email}. Notes sync while Float is open.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: _syncing ? null : _syncNow,
+            child: Text(_syncing ? 'Syncing…' : 'Sync now'),
+          ),
+          TextButton(
+            onPressed: () async {
+              await _syncService.logout();
+              if (mounted) setState(() => _accountSession = null);
+              if (dialogContext.mounted) Navigator.pop(dialogContext);
+            },
+            child: const Text('Sign out'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _startClipboardHistory() {
@@ -239,6 +347,35 @@ class _SnippetHomeState extends State<SnippetHome> {
           ],
         ),
         actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: _accountSession == null
+                    ? Colors.transparent
+                    : FloatTheme.ink,
+                border: Border.all(
+                  color: _accountSession == null
+                      ? FloatTheme.line
+                      : FloatTheme.ink,
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: IconButton(
+                tooltip: _accountSession == null
+                    ? 'Set up account sync'
+                    : 'Account sync',
+                onPressed: _showAccount,
+                color: _accountSession == null ? FloatTheme.ink : Colors.white,
+                icon: Icon(
+                  _accountSession == null
+                      ? Icons.person_outline_rounded
+                      : Icons.cloud_done_outlined,
+                  size: 19,
+                ),
+              ),
+            ),
+          ),
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: DecoratedBox(
@@ -573,5 +710,133 @@ class _ClipboardSetting extends StatelessWidget {
         Switch.adaptive(value: enabled, onChanged: onChanged),
       ],
     ),
+  );
+}
+
+class _AccountDialog extends StatefulWidget {
+  const _AccountDialog({required this.syncService});
+
+  final SyncService syncService;
+
+  @override
+  State<_AccountDialog> createState() => _AccountDialogState();
+}
+
+class _AccountDialogState extends State<_AccountDialog> {
+  final _apiController = TextEditingController(text: 'http://10.0.2.2:8787');
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _register = false;
+  bool _submitting = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _apiController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      final session = _register
+          ? await widget.syncService.register(
+              apiUrl: _apiController.text,
+              email: _emailController.text,
+              password: _passwordController.text,
+            )
+          : await widget.syncService.login(
+              apiUrl: _apiController.text,
+              email: _emailController.text,
+              password: _passwordController.text,
+            );
+      if (mounted) Navigator.pop(context, session);
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => _error = error.toString().replaceFirst('Exception: ', ''),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    backgroundColor: FloatTheme.paper,
+    surfaceTintColor: Colors.transparent,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(22),
+      side: const BorderSide(color: FloatTheme.line),
+    ),
+    title: Text(_register ? 'Create account' : 'Account sync'),
+    content: SizedBox(
+      width: 420,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Your notes stay on this device and sync whenever Float is open.',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: FloatTheme.mutedInk),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _apiController,
+            keyboardType: TextInputType.url,
+            decoration: const InputDecoration(labelText: 'Sync server URL'),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _emailController,
+            keyboardType: TextInputType.emailAddress,
+            decoration: const InputDecoration(labelText: 'Email'),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _passwordController,
+            obscureText: true,
+            decoration: const InputDecoration(
+              labelText: 'Password (8+ characters)',
+            ),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              _error!,
+              style: const TextStyle(color: FloatTheme.ink, fontSize: 12),
+            ),
+          ],
+        ],
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: _submitting
+            ? null
+            : () => setState(() => _register = !_register),
+        child: Text(
+          _register ? 'I already have an account' : 'Create an account',
+        ),
+      ),
+      FilledButton(
+        onPressed: _submitting ? null : _submit,
+        child: Text(
+          _submitting
+              ? 'Connecting…'
+              : _register
+              ? 'Create account'
+              : 'Sign in',
+        ),
+      ),
+    ],
   );
 }

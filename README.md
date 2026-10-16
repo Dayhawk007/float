@@ -6,6 +6,7 @@ Float is a local-first Android notes/clipboard utility with a desktop CLI and lo
 
 - `app/` — Flutter Android application with local snippet CRUD, pinning, search, and device-local persistence.
 - `cli/` — TypeScript CLI plus the local stdio MCP server.
+- `server/` — local account-sync API for development; not deployed or production-ready.
 - `PRD.md` — product scope and phased roadmap.
 - `DESIGN.md` — required client-side design and interaction system.
 
@@ -27,6 +28,15 @@ pnpm --dir cli build
 node cli/dist/index.js create --title "Availability" --body "I can start immediately." --tags jobs,forms --pin
 node cli/dist/index.js search availability --json
 ```
+
+### Local account-sync API
+
+```powershell
+pnpm install
+pnpm server:dev
+```
+
+The server binds to `127.0.0.1:8787` by default and stores development data in `%USERPROFILE%\.float-server\database.json`. The Android emulator can use `http://10.0.2.2:8787`; a physical device requires a deployed HTTPS endpoint, which is deliberately not configured yet. The CLI's account session is a development-only local file; production credential storage remains a required follow-up.
 
 The CLI persists to `%USERPROFILE%\\.float\\snippets.json` by default. Set `FLOAT_HOME` to use an isolated local data directory.
 
