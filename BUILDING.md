@@ -19,16 +19,17 @@ For every client-side change that affects UI or interaction, follow `DESIGN.md` 
 - The Android app and floating panel use a monochrome, low-elevation visual language: warm-white surfaces, near-black controls, fine borders, compact labels, and restrained state transitions.
 - The overlay reloads its isolated local-preferences cache when notes change, so new pins appear without restarting; the handle has no elevation/shadow.
 - Opt-in clipboard watcher. Clipboard collection is disabled by default and remains local to the device.
+- Account-free paired-device sync foundation: `float pair serve` creates a ten-minute one-time QR/pairing code, issues a per-device token, and serves the desktop's local snippet store only while explicitly running on the local network. The Android app can paste the pairing code, stores its token in Android secure storage, and performs foreground last-write-wins sync.
 
 ### Explicitly not implemented
 
-- Accounts, authentication, hosted API, cloud database, sync, deployment, analytics, and crash reporting.
+- Accounts, authentication, hosted API, cloud database, deployment, analytics, crash reporting, background sync, mDNS discovery, and camera QR scanning.
 - iOS, desktop GUI, browser extension, or remote MCP transport.
 - Clipboard history that is enabled without the user’s explicit in-app choice.
 
 ## Next work
 
-1. Test the overlay and clipboard listener on physical Android devices and common OEM variants.
-2. Add user-controlled retention limits and deletion controls for clipboard-history entries.
-3. Replace `shared_preferences` with a transactional local database before the data model grows to tags, lists, and export/import.
-4. Add Android Share Target intake and a clear overlay onboarding screen.
+1. Test pairing and foreground sync on physical Android devices and common OEM variants.
+2. Add camera QR scanning and mDNS discovery for paired agents on trusted LANs.
+3. Add user-controlled retention limits and deletion controls for clipboard-history entries.
+4. Replace `shared_preferences` with a transactional local database before the data model grows to tags, lists, and export/import.

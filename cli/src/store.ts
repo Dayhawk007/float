@@ -5,7 +5,9 @@ import { dirname, join } from 'node:path';
 import { z } from 'zod';
 
 const snippetSchema = z.object({
-  id: z.string().uuid(),
+  // Android creates opaque timestamp IDs locally. IDs are intentionally not
+  // UUID-only so a paired device can preserve its local note identity.
+  id: z.string().min(1),
   title: z.string().min(1),
   body: z.string(),
   tags: z.array(z.string()),
@@ -82,6 +84,16 @@ export class FloatStore {
     database.snippets[index] = updated;
     await this.save(database);
     return updated;
+  }
+
+  async upsert(snippet: Snippet): Promise<Snippet> {
+    const validated = snippetSchema.parse(snippet);
+    const database = await this.read();
+    const index = database.snippets.findIndex((item) => item.id === validated.id);
+    if (index === -1) database.snippets.push(validated);
+    else database.snippets[index] = validated;
+    await this.save(database);
+    return validated;
   }
 
   async markUsed(id: string): Promise<Snippet> {

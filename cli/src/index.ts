@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import clipboard from 'clipboardy';
 import { FloatStore, type Snippet } from './store.js';
 import { startMcpServer } from './mcp.js';
+import { startPairingAgent } from './pairing_agent.js';
 
 const store = new FloatStore();
 const program = new Command();
@@ -34,5 +35,6 @@ program.command('copy <id>').description('Copy a snippet body to the system clip
 program.command('delete <id>').description('Permanently delete a snippet').requiredOption('--yes', 'Confirm permanent deletion').action(async (id) => { await store.remove(id); console.log(`Deleted ${id}`); });
 program.command('export <path>').description('Export all local Float data as JSON').action(async (path) => { await writeFile(path, `${JSON.stringify(await store.export(), null, 2)}\n`, 'utf8'); console.log(`Exported Float data to ${path}`); });
 program.command('mcp').description('Run Float as a local stdio MCP server').command('serve').description('Start the local-only MCP server').action(startMcpServer);
+program.command('pair').description('Pair an Android device with this local Float store').command('serve').description('Show a QR code and serve paired devices on the local network').option('--host <host>', 'Address to bind', '0.0.0.0').option('--port <port>', 'Port to listen on', '8787').option('--url <url>', 'LAN URL to place in the pairing QR code').option('--duration <seconds>', 'Stop after this many seconds').action((options) => startPairingAgent({ host: options.host, port: Number(options.port), advertiseUrl: options.url, durationSeconds: options.duration ? Number(options.duration) : undefined }));
 
 program.parseAsync().catch((error: Error) => { console.error(`float: ${error.message}`); process.exitCode = 1; });

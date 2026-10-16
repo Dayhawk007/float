@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -8,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'clipboard_history.dart';
 import 'float_theme.dart';
 import 'overlay.dart';
+import 'paired_sync_service.dart';
 
 const snippetStorageKey = 'float.snippets.v1';
 const clipboardHistoryEnabledKey = 'float.clipboard-history-enabled.v1';
@@ -43,6 +45,7 @@ class Snippet {
     'title': title,
     'body': body,
     'updatedAt': updatedAt.toIso8601String(),
+    'createdAt': updatedAt.toIso8601String(),
     'pinned': pinned,
   };
   factory Snippet.fromJson(Map<String, dynamic> json) => Snippet(
@@ -77,6 +80,9 @@ class _SnippetHomeState extends State<SnippetHome> {
   bool _loading = true;
   bool _clipboardHistoryEnabled = false;
   ClipboardHistoryService? _clipboardHistory;
+  final _pairedSync = PairedSyncService();
+  PairedDevice? _pairedDevice;
+  bool _syncing = false;
 
   @override
   void initState() {
@@ -103,6 +109,18 @@ class _SnippetHomeState extends State<SnippetHome> {
         preferences.getBool(clipboardHistoryEnabledKey) ?? false;
     if (_clipboardHistoryEnabled) _startClipboardHistory();
     if (mounted) setState(() => _loading = false);
+    unawaited(_restorePairedDevice());
+  }
+
+  Future<void> _restorePairedDevice() async {
+    try {
+      final device = await _pairedSync.device();
+      if (!mounted || device == null) return;
+      setState(() => _pairedDevice = device);
+      await _syncNow(silent: true);
+    } catch (_) {
+      // Secure storage is unavailable in widget tests and unsupported clients.
+    }
   }
 
   Future<void> _save() async =>
@@ -121,6 +139,7 @@ class _SnippetHomeState extends State<SnippetHome> {
       }
     });
     await _save();
+    unawaited(_pushSnippet(snippet));
     try {
       if (await FlutterOverlayWindow.isActive()) {
         await FlutterOverlayWindow.shareData('snippets-changed');
@@ -133,6 +152,115 @@ class _SnippetHomeState extends State<SnippetHome> {
   Future<void> _delete(String id) async {
     setState(() => _snippets.removeWhere((snippet) => snippet.id == id));
     await _save();
+    final device = _pairedDevice;
+    if (device != null) unawaited(_pairedSync.remove(device, id));
+  }
+
+  Future<void> _pushSnippet(Snippet snippet) async {
+    final device = _pairedDevice;
+    if (device == null) return;
+    try {
+      await _pairedSync.upsert(device, snippet.toJson());
+    } catch (_) {}
+  }
+
+  Future<void> _syncNow({bool silent = false}) async {
+    final device = _pairedDevice;
+    if (device == null || _syncing) return;
+    if (mounted) setState(() => _syncing = true);
+    try {
+      final remote = await _pairedSync.list(device);
+      final local = {for (final snippet in _snippets) snippet.id: snippet};
+      final remoteIds = <String>{};
+      for (final item in remote) {
+        final snippet = Snippet.fromJson(item);
+        remoteIds.add(snippet.id);
+        if (!local.containsKey(snippet.id) ||
+            snippet.updatedAt.isAfter(local[snippet.id]!.updatedAt)) {
+          local[snippet.id] = snippet;
+        }
+      }
+      for (final snippet in local.values) {
+        if (!remoteIds.contains(snippet.id) ||
+            snippet.updatedAt.isAfter(
+              (remote
+                      .where((item) => item['id'] == snippet.id)
+                      .map(Snippet.fromJson)
+                      .first)
+                  .updatedAt,
+            )) {
+          await _pairedSync.upsert(device, snippet.toJson());
+        }
+      }
+      _snippets = local.values.toList();
+      await _save();
+      if (!silent && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Synced with paired device.')),
+        );
+      }
+    } catch (error) {
+      if (!silent && mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Sync failed: $error')));
+      }
+    } finally {
+      if (mounted) setState(() => _syncing = false);
+    }
+  }
+
+  Future<void> _showPairing() async {
+    if (_pairedDevice != null) {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Paired device'),
+          content: const Text(
+            'This phone syncs only with the paired local Float agent while both are reachable on the same network.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: _syncing ? null : _syncNow,
+              child: Text(_syncing ? 'Syncing…' : 'Sync now'),
+            ),
+            TextButton(
+              onPressed: () async {
+                await _pairedSync.forget();
+                if (mounted) setState(() => _pairedDevice = null);
+                if (dialogContext.mounted) Navigator.pop(dialogContext);
+              },
+              child: const Text('Forget device'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+    final result = await showDialog<String>(
+      context: context,
+      builder: (_) => const _PairingDialog(),
+    );
+    if (result == null) {
+      return;
+    }
+    try {
+      final device = await _pairedSync.pair(
+        result,
+        deviceId: 'android-${DateTime.now().microsecondsSinceEpoch}',
+        deviceName: 'Float Android',
+      );
+      if (mounted) {
+        setState(() => _pairedDevice = device);
+      }
+      await _syncNow();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Pairing failed: $error')));
+      }
+    }
   }
 
   void _startClipboardHistory() {
@@ -239,6 +367,35 @@ class _SnippetHomeState extends State<SnippetHome> {
           ],
         ),
         actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: _pairedDevice == null
+                    ? Colors.transparent
+                    : FloatTheme.ink,
+                border: Border.all(
+                  color: _pairedDevice == null
+                      ? FloatTheme.line
+                      : FloatTheme.ink,
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: IconButton(
+                tooltip: _pairedDevice == null
+                    ? 'Pair a local device'
+                    : 'Paired device',
+                onPressed: _showPairing,
+                color: _pairedDevice == null ? FloatTheme.ink : Colors.white,
+                icon: Icon(
+                  _pairedDevice == null
+                      ? Icons.link_rounded
+                      : Icons.sync_rounded,
+                  size: 19,
+                ),
+              ),
+            ),
+          ),
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: DecoratedBox(
@@ -576,3 +733,58 @@ class _ClipboardSetting extends StatelessWidget {
   );
 }
 
+class _PairingDialog extends StatefulWidget {
+  const _PairingDialog();
+  @override
+  State<_PairingDialog> createState() => _PairingDialogState();
+}
+
+class _PairingDialogState extends State<_PairingDialog> {
+  final _controller = TextEditingController();
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    backgroundColor: FloatTheme.paper,
+    surfaceTintColor: Colors.transparent,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(22),
+      side: const BorderSide(color: FloatTheme.line),
+    ),
+    title: const Text('Pair a local device'),
+    content: SizedBox(
+      width: 420,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'On your computer, run “float pair serve”, then paste its one-time pairing code here. The terminal also shows a QR code for the upcoming camera pairing flow.',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: FloatTheme.mutedInk),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _controller,
+            minLines: 3,
+            maxLines: 5,
+            decoration: const InputDecoration(
+              labelText: 'One-time pairing code',
+            ),
+          ),
+        ],
+      ),
+    ),
+    actions: [
+      FilledButton(
+        onPressed: () => Navigator.pop(context, _controller.text),
+        child: const Text('Pair device'),
+      ),
+    ],
+  );
+}

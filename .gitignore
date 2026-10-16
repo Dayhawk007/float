@@ -9,6 +9,7 @@ cli/dist/
 cli/node_modules/
 *.iml
 app/android/local.properties
+app/android/.kotlin/
 app/.dart_tool/
 app/build/
 app/.idea/

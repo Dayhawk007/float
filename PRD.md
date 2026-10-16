@@ -57,7 +57,7 @@ People need a fast way to keep answers, links, templates, identifiers, drafts, a
 - **Local-first:** core note and clipboard functionality must work offline.
 - **User control:** overlays, sync, data retention, and AI-client access are all opt-in.
 - **Privacy by default:** minimize collection, expose clear deletion controls, and never read or transmit clipboard contents silently.
-- **Open community:** publish the Android app and server/MCP components under a permissive open-source license to be selected before launch.
+- **Open community:** publish the Android app and CLI/MCP components under a permissive open-source license to be selected before launch.
 
 ## 7. User Experience
 
@@ -122,23 +122,24 @@ The full-screen app is the management surface. It includes:
 ### 8.4 Cross-device sync (v1.1)
 
 - Sync is optional and disabled by default.
-- A user signs in using a low-friction account mechanism selected during technical design (for example, GitHub OAuth or magic link).
-- The app syncs user-authored snippets, organization metadata, and user-selected clipboard-history entries; it must not automatically sync all clipboard history.
-- Changes sync in the background when available and resolve conflicts predictably. The initial policy is last-write-wins with an in-app conflict/history record for text changed on multiple devices.
-- Users can disconnect a device, erase cloud data, export their data, and continue using the local app.
+- A desktop CLI agent is the local source of truth. A user starts it explicitly, then pairs a phone on a trusted local network using a short-lived QR/pairing code.
+- Pairing creates a revocable token for that phone, not a user account. The desktop stores only a hash of the device token; Android stores its token in platform-secure storage.
+- The app syncs user-authored snippets and user-selected clipboard-history entries; it must not automatically sync all clipboard history.
+- Initial sync occurs while Float is open and the paired agent is reachable. Changes use last-write-wins based on `updatedAt`; background sync, mDNS discovery, and camera QR scanning are follow-up work.
+- Users can forget a paired device, stop the local agent, export their local data, and continue using the local app.
 
 ### 8.5 CLI and MCP companion (first release)
 
-Float ships an optional companion command-line interface and MCP server. Both operate against the user's local Float data by default; optional sync makes the same data available across authorized devices.
+Float ships an optional companion command-line interface and MCP server. Both operate against the user's local Float data by default; an explicit paired-device agent can make that data available to a phone on the same trusted network.
 
 #### CLI requirements
 
-- The CLI is installable independently of the Android app and can use a local data store or a signed-in synced account.
+- The CLI is installable independently of the Android app and uses a local data store.
 - It supports non-interactive commands suitable for shells and scripts: `float search`, `float get`, `float create`, `float update`, `float copy`, `float list`, `float export`, and `float sync`.
 - Output defaults to readable text and supports a machine-readable JSON option.
 - `float copy` writes only the explicitly selected snippet to the system clipboard.
 - Commands that create, update, or delete data print the affected item and require explicit arguments; destructive bulk actions require confirmation unless a deliberate non-interactive flag is provided.
-- The CLI stores tokens in OS-secure credential storage where available and must support sign-out, token revocation, and local-data deletion.
+- `float pair serve` must require explicit invocation, create a short-lived one-time pairing code, and allow the user to stop access by ending the process or forgetting a paired device.
 
 #### MCP requirements
 
@@ -167,7 +168,7 @@ Requirements:
 - Local persistence using SQLite/Drift or an equivalent mature Flutter database layer.
 - Android foreground service and `TYPE_APPLICATION_OVERLAY` only where required for the user-enabled floating UI.
 - Android Share Target integration for incoming text and links.
-- Encrypted local storage for account tokens and sync credentials.
+- Encrypted local storage for paired-device tokens; no account credentials.
 
 ### CLI and MCP companion
 
@@ -176,25 +177,25 @@ Requirements:
 - Use standard input/output for the local MCP transport, avoiding a permanently open network port in the first release.
 - Package for Windows first, then add macOS and Linux distribution once the command contract is stable.
 
-### Sync service
+### Paired-device agent
 
-- Start with a small API and managed database suitable for a free-tier deployment; Vercel can host API endpoints, but persistence and background-sync constraints must be validated before committing to it.
-- Keep the API stateless and the data model simple: user, device, snippet, tag, list, sync revision, and revoked token.
-- Do not make the server a dependency for basic local notes/clipboard operation.
+- The CLI starts a small local HTTP agent only when the user requests pairing. It binds to the local network for the duration of the process and accepts only per-device bearer tokens created through a short-lived pairing code.
+- Keep the data model simple: paired device, local snippet, and device token hash. There are no users, accounts, cloud records, or hosted database.
+- Do not make the agent a dependency for basic local notes/clipboard operation. It is an opt-in, local-network convenience layer.
 
 ### Open-source delivery
 
-- Separate the repository into `app/`, `cli/`, `server/`, `mcp/`, shared schema/package modules as appropriate, and `docs/` when implementation starts.
+- Keep the repository organized around `app/`, `cli/`, shared schema/package modules as appropriate, and `docs/` when implementation starts.
 - Publish a contribution guide, privacy policy, threat model, and reproducible local-development instructions before public launch.
 
 ## 10. Privacy and Security Requirements
 
 - No advertising SDKs, behavioral analytics, or sale of user data.
 - Anonymous, opt-in telemetry only if it is ever introduced; the app must remain usable when telemetry is disabled.
-- All sync traffic uses HTTPS; credentials are stored only in platform-secure storage.
-- The server stores the minimum data needed for synchronization.
-- Before launch, decide whether end-to-end encryption is feasible. If it is deferred, document exactly what is encrypted in transit and at rest, who can access server data, and the threat model.
-- Offer data export and account/data deletion from within the app.
+- Pairing is limited to a trusted local network and uses an expiring high-entropy pairing code plus a distinct bearer token per paired device. The local agent must not be exposed publicly.
+- Device tokens are stored only in platform-secure storage on Android; the desktop stores their hashes locally.
+- Before launch, add authenticated encryption or TLS for LAN traffic, document the local-network threat model, and provide paired-device revocation.
+- Offer local data export and paired-device removal from within the app.
 
 ## 11. Success Metrics
 
@@ -213,7 +214,7 @@ Initial metrics should be privacy-preserving and optional where possible:
 
 - Confirm Android overlay behavior and permission UX on supported Android versions.
 - Create interaction wireframes and accessibility review.
-- Decide license, repository structure, backend choice, and authentication approach.
+- Decide license, repository structure, and the local-network security approach.
 
 ### Milestone 1 — Local Android MVP
 
@@ -233,9 +234,9 @@ Initial metrics should be privacy-preserving and optional where possible:
 - Fix overlay lifecycle, battery, accessibility, and privacy issues.
 - Gather qualitative feedback from job seekers, creators, and power users.
 
-### Milestone 3 — Optional sync
+### Milestone 3 — Optional local pairing
 
-- Account linking, device management, cloud backup, conflict handling, and deletion/export flows.
+- Camera QR scanning, mDNS discovery, paired-device management, conflict handling, background sync where Android permits it, and deletion/export flows.
 
 ### Milestone 4 — MCP and public launch
 
@@ -258,7 +259,6 @@ Initial metrics should be privacy-preserving and optional where possible:
 
 - Which open-source license best matches the community-governance intent: MIT, Apache-2.0, GPLv3, or another option?
 - Is Vercel plus a managed database sufficient for sync latency, background behavior, and cost, or should the sync service use a different host?
-- Which account option has the least friction while remaining privacy-respecting?
-- What local and cloud encryption model is feasible for the first public version?
+- What authenticated-encryption model is feasible for the first public local-network release?
 - Which Android versions and OEMs make up the explicit support matrix?
 - Should the first release store only plain text, or also URLs, images, and files as distinct snippet types?

@@ -37,6 +37,8 @@ dependencies:
   shared_preferences: ^2.3.4
   flutter_overlay_window:
     path: ../packages/flutter_overlay_window_local
+  http: ^1.6.0
+  flutter_secure_storage: ^10.3.4
 
 dev_dependencies:
   flutter_test:

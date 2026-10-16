@@ -20,7 +20,7 @@ export async function startMcpServer(): Promise<void> {
   server.registerTool('get_snippet', {
     title: 'Get a Float snippet',
     description: 'Read one locally stored Float snippet by ID.',
-    inputSchema: { id: z.string().uuid() },
+    inputSchema: { id: z.string().min(1) },
   }, async ({ id }) => result(await store.get(id)));
 
   server.registerTool('create_snippet', {
@@ -32,7 +32,7 @@ export async function startMcpServer(): Promise<void> {
   server.registerTool('update_snippet', {
     title: 'Update a Float snippet',
     description: 'Update title, body, tags, list, or pinned status of a local Float snippet.',
-    inputSchema: { id: z.string().uuid(), title: z.string().min(1).optional(), body: z.string().optional(), tags: z.array(z.string()).optional(), list: z.string().nullable().optional(), pinned: z.boolean().optional() },
+    inputSchema: { id: z.string().min(1), title: z.string().min(1).optional(), body: z.string().optional(), tags: z.array(z.string()).optional(), list: z.string().nullable().optional(), pinned: z.boolean().optional() },
   }, async ({ id, ...fields }) => result(await store.update(id, fields)));
 
   await server.connect(new StdioServerTransport());
