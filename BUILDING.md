@@ -18,6 +18,9 @@ For every client-side change that affects UI or interaction, follow `DESIGN.md` 
 - Releasing the compact handle snaps it to the nearest vertical screen edge; its native touch listener emits an explicit tap event to expand the notes panel.
 - The Android app and floating panel use a monochrome, low-elevation visual language: warm-white surfaces, near-black controls, fine borders, compact labels, and restrained state transitions.
 - The overlay reloads its isolated local-preferences cache when notes change, so new pins appear without restarting; the handle has no elevation/shadow.
+- The paired phone polls the local agent every five seconds while paired and signals the active overlay after a pull, so desktop-created notes appear without restarting or manually rereading.
+- Overlay permission failures explain Android's Display over other apps path and can open the app-specific system settings screen.
+- Notes receive lightweight inferred presentation context (LinkedIn, link, template, code, or note) without changing the portable snippet schema.
 - Opt-in clipboard watcher. Clipboard collection is disabled by default and remains local to the device.
 - Account-free paired-device sync foundation: `float pair serve` creates a ten-minute QR credential plus an eight-digit manual code, issues a per-device token, and serves the desktop's local snippet store only while explicitly running on the local network. The Android app can scan the QR, enter the printed agent URL and code, stores its token in Android secure storage, and performs foreground last-write-wins sync.
 - Pairing and sync emit structured, privacy-safe diagnostics to Android `FloatPair` logs and the local agent terminal. They record stage, origin, status, count, elapsed time, and error type, never tokens or note contents.

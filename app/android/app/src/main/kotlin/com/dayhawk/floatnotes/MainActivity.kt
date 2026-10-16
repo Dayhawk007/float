@@ -3,11 +3,16 @@ package com.dayhawk.floatnotes
 import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
+import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity(), EventChannel.StreamHandler {
+    private val systemChannel = "float/system"
     private var clipboardManager: ClipboardManager? = null
     private var events: EventChannel.EventSink? = null
     private val clipboardListener = ClipboardManager.OnPrimaryClipChangedListener { sendClipboardText() }
@@ -15,6 +20,14 @@ class MainActivity : FlutterActivity(), EventChannel.StreamHandler {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         EventChannel(flutterEngine.dartExecutor.binaryMessenger, "float/clipboard_history").setStreamHandler(this)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, systemChannel).setMethodCallHandler { call, result ->
+            if (call.method == "openOverlaySettings") {
+                startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
+                result.success(null)
+            } else {
+                result.notImplemented()
+            }
+        }
     }
 
     override fun onListen(arguments: Any?, eventSink: EventChannel.EventSink?) {

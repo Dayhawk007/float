@@ -14,6 +14,7 @@ import 'paired_sync_service.dart';
 
 const snippetStorageKey = 'float.snippets.v1';
 const clipboardHistoryEnabledKey = 'float.clipboard-history-enabled.v1';
+const syncPollInterval = Duration(seconds: 5);
 
 void main() => runApp(const FloatApp());
 
@@ -58,6 +59,47 @@ class Snippet {
   );
 }
 
+enum SnippetKind { linkedin, link, template, code, text }
+
+SnippetKind snippetKind(Snippet snippet) {
+  final value = '${snippet.title}\n${snippet.body}'.toLowerCase();
+  final uri = Uri.tryParse(snippet.body.trim());
+  if (uri != null && uri.hasScheme && uri.host.contains('linkedin.com')) {
+    return SnippetKind.linkedin;
+  }
+  if (uri != null && uri.hasScheme && uri.host.isNotEmpty) {
+    return SnippetKind.link;
+  }
+  if (value.contains('template') ||
+      value.contains('{{') ||
+      value.contains('\${') ||
+      value.contains('[[')) {
+    return SnippetKind.template;
+  }
+  if (value.contains('```') ||
+      value.contains('function ') ||
+      value.contains('const ')) {
+    return SnippetKind.code;
+  }
+  return SnippetKind.text;
+}
+
+String snippetKindLabel(SnippetKind kind) => switch (kind) {
+  SnippetKind.linkedin => 'LINKEDIN',
+  SnippetKind.link => 'LINK',
+  SnippetKind.template => 'TEMPLATE',
+  SnippetKind.code => 'CODE',
+  SnippetKind.text => 'NOTE',
+};
+
+IconData snippetKindIcon(SnippetKind kind) => switch (kind) {
+  SnippetKind.linkedin => Icons.work_outline_rounded,
+  SnippetKind.link => Icons.link_rounded,
+  SnippetKind.template => Icons.dashboard_customize_outlined,
+  SnippetKind.code => Icons.data_object_rounded,
+  SnippetKind.text => Icons.note_outlined,
+};
+
 class FloatApp extends StatelessWidget {
   const FloatApp({super.key});
   @override
@@ -84,6 +126,7 @@ class _SnippetHomeState extends State<SnippetHome> {
   final _pairedSync = PairedSyncService();
   PairedDevice? _pairedDevice;
   bool _syncing = false;
+  Timer? _syncTimer;
 
   @override
   void initState() {
@@ -94,6 +137,7 @@ class _SnippetHomeState extends State<SnippetHome> {
   @override
   void dispose() {
     _clipboardHistory?.dispose();
+    _syncTimer?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -118,6 +162,7 @@ class _SnippetHomeState extends State<SnippetHome> {
       final device = await _pairedSync.device();
       if (!mounted || device == null) return;
       setState(() => _pairedDevice = device);
+      _startSyncPolling();
       await _syncNow(silent: true);
     } catch (_) {
       // Secure storage is unavailable in widget tests and unsupported clients.
@@ -141,6 +186,10 @@ class _SnippetHomeState extends State<SnippetHome> {
     });
     await _save();
     unawaited(_pushSnippet(snippet));
+    await _notifyOverlay();
+  }
+
+  Future<void> _notifyOverlay() async {
     try {
       if (await FlutterOverlayWindow.isActive()) {
         await FlutterOverlayWindow.shareData('snippets-changed');
@@ -148,6 +197,13 @@ class _SnippetHomeState extends State<SnippetHome> {
     } on MissingPluginException {
       // The overlay channel is Android-only and is unavailable in widget tests.
     }
+  }
+
+  void _startSyncPolling() {
+    _syncTimer ??= Timer.periodic(
+      syncPollInterval,
+      (_) => _syncNow(silent: true),
+    );
   }
 
   Future<void> _delete(String id) async {
@@ -195,6 +251,7 @@ class _SnippetHomeState extends State<SnippetHome> {
       }
       _snippets = local.values.toList();
       await _save();
+      await _notifyOverlay();
       if (!silent && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Synced with paired device.')),
@@ -272,6 +329,7 @@ class _SnippetHomeState extends State<SnippetHome> {
       if (mounted) {
         setState(() => _pairedDevice = device);
       }
+      _startSyncPolling();
       await _syncNow();
     } catch (error) {
       if (mounted) {
@@ -323,7 +381,34 @@ class _SnippetHomeState extends State<SnippetHome> {
     final permitted = await FlutterOverlayWindow.isPermissionGranted();
     final granted =
         permitted || await FlutterOverlayWindow.requestPermission() == true;
-    if (!granted) return;
+    if (!granted) {
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Allow Float over other apps'),
+          content: const Text(
+            'Float needs Android’s “Display over other apps” permission to keep the note handle visible.\n\nOpen Settings → Apps → Special app access → Display over other apps → Float, then turn on “Allow display over other apps”.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Not now'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                Navigator.pop(dialogContext);
+                await const MethodChannel(
+                  'float/system',
+                ).invokeMethod<void>('openOverlaySettings');
+              },
+              child: const Text('Open Settings'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
     if (!mounted) return;
     final initialSize = (72 * MediaQuery.devicePixelRatioOf(context)).round();
     await FlutterOverlayWindow.showOverlay(
@@ -615,7 +700,7 @@ class _SnippetCard extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(top: 3),
                 child: Icon(
-                  snippet.pinned ? Icons.push_pin_rounded : Icons.note_outlined,
+                  snippetKindIcon(snippetKind(snippet)),
                   color: snippet.pinned ? Colors.white : FloatTheme.ink,
                   size: 19,
                 ),
@@ -649,6 +734,8 @@ class _SnippetCard extends StatelessWidget {
                         ),
                       ),
                     ],
+                    const SizedBox(height: 8),
+                    _SnippetKindBadge(kind: snippetKind(snippet)),
                   ],
                 ),
               ),
@@ -671,6 +758,38 @@ class _SnippetCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    ),
+  );
+}
+
+class _SnippetKindBadge extends StatelessWidget {
+  const _SnippetKindBadge({required this.kind});
+
+  final SnippetKind kind;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: FloatTheme.soft,
+      borderRadius: BorderRadius.circular(7),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(snippetKindIcon(kind), size: 12),
+          const SizedBox(width: 4),
+          Text(
+            snippetKindLabel(kind),
+            style: const TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              letterSpacing: .7,
+            ),
+          ),
+        ],
       ),
     ),
   );

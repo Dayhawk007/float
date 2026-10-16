@@ -98,9 +98,7 @@ class _OverlayHandle extends StatelessWidget {
     child: Material(
       color: FloatTheme.ink,
       elevation: 0,
-      shape: const CircleBorder(
-        side: BorderSide(color: Colors.white, width: 1.5),
-      ),
+      shape: const CircleBorder(),
       child: const SizedBox(
         width: 64,
         height: 64,
@@ -185,6 +183,10 @@ class _ExpandedOverlay extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      leading: Icon(
+                        snippetKindIcon(snippetKind(snippets[index])),
+                        size: 18,
                       ),
                       subtitle: Text(
                         snippets[index].body,

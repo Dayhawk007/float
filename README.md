@@ -46,6 +46,8 @@ Keep the `float pair serve` terminal open during pairing. It prints `[float-agen
 
 ### MCP server
 
+See [MCP.md](MCP.md) for Codex, Claude Desktop, and Cursor setup plus the recommended agent workflow.
+
 Build the CLI, then configure a compatible client to launch:
 
 ```text
