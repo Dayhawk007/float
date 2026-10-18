@@ -8,6 +8,8 @@ const execFile = promisify(execFileCallback);
 const taskName = 'Float Agent';
 const launchAgentName = 'com.dayhawk.float.agent.plist';
 const systemdServiceName = 'float-agent.service';
+const windowsRunKey = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run';
+const windowsRunValue = 'Float Agent';
 
 export type AutoStartStatus = {
   platform: string;
@@ -37,6 +39,24 @@ function macPath(): string {
   return join(homedir(), 'Library', 'LaunchAgents', launchAgentName);
 }
 
+function windowsScriptPath(): string {
+  return join(process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming'), 'Float', 'agent-start.vbs');
+}
+
+function windowsVbs(command: { node: string; entry: string }): string {
+  const escapedNode = command.node.replace(/"/g, '""');
+  const escapedEntry = command.entry.replace(/"/g, '""');
+  return `Set shell = CreateObject("WScript.Shell")\r\nshell.Run """${escapedNode}"" ""${escapedEntry}"" agent serve", 0, False\r\n`;
+}
+
+async function installWindowsRunEntry(command: { node: string; entry: string }): Promise<AutoStartStatus> {
+  const scriptPath = windowsScriptPath();
+  await mkdir(dirname(scriptPath), { recursive: true });
+  await writeFile(scriptPath, windowsVbs(command), 'utf8');
+  await execFile('reg.exe', ['ADD', windowsRunKey, '/v', windowsRunValue, '/t', 'REG_SZ', '/d', `wscript.exe "${scriptPath}"`, '/f']);
+  return { platform: 'windows', installed: true, location: `Registry Run: ${windowsRunValue}` };
+}
+
 function linuxPath(): string {
   return join(process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config'), 'systemd', 'user', systemdServiceName);
 }
@@ -45,11 +65,12 @@ export async function installAgentAutoStart(): Promise<AutoStartStatus> {
   const target = platform();
   const command = launchCommand();
   if (target === 'win32') {
-    await execFile('schtasks.exe', [
+    const scheduledTask = await execFile('schtasks.exe', [
       '/Create', '/TN', taskName, '/SC', 'ONLOGON', '/RL', 'LIMITED',
       '/TR', `${quoteWindows(command.node)} ${quoteWindows(command.entry)} agent serve`, '/F',
-    ]);
-    return { platform: 'windows', installed: true, location: `Task Scheduler: ${taskName}` };
+    ]).then(() => true).catch(() => false);
+    if (scheduledTask) return { platform: 'windows', installed: true, location: `Task Scheduler: ${taskName}` };
+    return installWindowsRunEntry(command);
   }
   if (target === 'darwin') {
     const location = macPath();
@@ -76,8 +97,10 @@ export async function installAgentAutoStart(): Promise<AutoStartStatus> {
 export async function agentAutoStartStatus(): Promise<AutoStartStatus> {
   const target = platform();
   if (target === 'win32') {
-    const installed = await execFile('schtasks.exe', ['/Query', '/TN', taskName]).then(() => true).catch(() => false);
-    return { platform: 'windows', installed, location: `Task Scheduler: ${taskName}` };
+    const taskInstalled = await execFile('schtasks.exe', ['/Query', '/TN', taskName]).then(() => true).catch(() => false);
+    if (taskInstalled) return { platform: 'windows', installed: true, location: `Task Scheduler: ${taskName}` };
+    const runInstalled = await execFile('reg.exe', ['QUERY', windowsRunKey, '/v', windowsRunValue]).then(() => true).catch(() => false);
+    return { platform: 'windows', installed: runInstalled, location: `Registry Run: ${windowsRunValue}` };
   }
   if (target === 'darwin') {
     const location = macPath();
@@ -96,7 +119,9 @@ export async function uninstallAgentAutoStart(): Promise<AutoStartStatus> {
   const target = platform();
   if (target === 'win32') {
     await execFile('schtasks.exe', ['/Delete', '/TN', taskName, '/F']).catch(() => undefined);
-    return { platform: 'windows', installed: false, location: `Task Scheduler: ${taskName}` };
+    await execFile('reg.exe', ['DELETE', windowsRunKey, '/v', windowsRunValue, '/f']).catch(() => undefined);
+    await rm(windowsScriptPath(), { force: true });
+    return { platform: 'windows', installed: false, location: `Task Scheduler or Registry Run: ${windowsRunValue}` };
   }
   if (target === 'darwin') {
     const location = macPath();
