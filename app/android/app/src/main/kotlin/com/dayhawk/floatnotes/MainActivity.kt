@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.net.wifi.WifiManager
 import android.provider.Settings
 import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
@@ -16,6 +17,7 @@ class MainActivity : FlutterActivity(), EventChannel.StreamHandler {
     private val systemChannel = "float/system"
     private var clipboardManager: ClipboardManager? = null
     private var events: EventChannel.EventSink? = null
+    private var multicastLock: WifiManager.MulticastLock? = null
     private val clipboardListener = ClipboardManager.OnPrimaryClipChangedListener { sendClipboardText() }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -44,6 +46,23 @@ class MainActivity : FlutterActivity(), EventChannel.StreamHandler {
                     Log.d("FloatClipboard", "clipboard.read hasText=${!text.isNullOrEmpty()}")
                     result.success(text)
                 }
+                "acquireMulticastLock" -> {
+                    val wifi = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+                    if (multicastLock == null) {
+                        multicastLock = wifi.createMulticastLock("float-mdns").apply {
+                            setReferenceCounted(false)
+                            acquire()
+                        }
+                        Log.d("FloatDiscovery", "mdns.multicast_lock.acquired")
+                    }
+                    result.success(null)
+                }
+                "releaseMulticastLock" -> {
+                    multicastLock?.let { lock -> if (lock.isHeld) lock.release() }
+                    multicastLock = null
+                    Log.d("FloatDiscovery", "mdns.multicast_lock.released")
+                    result.success(null)
+                }
                 else -> result.notImplemented()
             }
         }
@@ -64,6 +83,8 @@ class MainActivity : FlutterActivity(), EventChannel.StreamHandler {
 
     override fun onDestroy() {
         onCancel(null)
+        multicastLock?.let { lock -> if (lock.isHeld) lock.release() }
+        multicastLock = null
         super.onDestroy()
     }
 

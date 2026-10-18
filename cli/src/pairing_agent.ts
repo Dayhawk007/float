@@ -3,6 +3,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { homedir, networkInterfaces } from 'node:os';
 import { dirname, join } from 'node:path';
+import Bonjour from 'bonjour-service';
 import qrcode from 'qrcode-terminal';
 import { z } from 'zod';
 import { FloatStore, type Snippet } from './store.js';
@@ -16,6 +17,7 @@ const snippetSchema = z.object({
 
 type PairedDevice = { id: string; name: string; tokenHash: string; pairedAt: string };
 type PairingDatabase = { version: 1; devices: PairedDevice[] };
+type AgentIdentity = { version: 1; agentId: string };
 
 function floatHome(): string { return process.env.FLOAT_HOME ?? join(homedir(), '.float'); }
 function hash(value: string): string { return createHash('sha256').update(value).digest('hex'); }
@@ -86,22 +88,48 @@ class DeviceRegistry {
   }
 }
 
+class AgentIdentityStore {
+  private readonly filePath = join(floatHome(), 'agent.json');
+
+  async getOrCreate(): Promise<AgentIdentity> {
+    try {
+      const identity = JSON.parse(await readFile(this.filePath, 'utf8')) as AgentIdentity;
+      if (identity.version === 1 && typeof identity.agentId === 'string' && identity.agentId.length > 0) {
+        log('agent.identity.loaded', { agentId: identity.agentId });
+        return identity;
+      }
+      throw new Error('Agent identity file is invalid.');
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      const identity: AgentIdentity = { version: 1, agentId: randomUUID() };
+      await mkdir(dirname(this.filePath), { recursive: true });
+      const temporary = `${this.filePath}.tmp`;
+      await writeFile(temporary, `${JSON.stringify(identity, null, 2)}\n`, 'utf8');
+      await rename(temporary, this.filePath);
+      log('agent.identity.created', { agentId: identity.agentId });
+      return identity;
+    }
+  }
+}
+
 function bearer(request: IncomingMessage): string | undefined {
   const value = request.headers.authorization;
   return value?.startsWith('Bearer ') ? value.slice('Bearer '.length) : undefined;
 }
 
-export async function startPairingAgent(options: { host?: string; port?: number; advertiseUrl?: string; durationSeconds?: number } = {}): Promise<void> {
+export async function startPairingAgent(options: { host?: string; port?: number; advertiseUrl?: string; durationSeconds?: number; pairing?: boolean } = {}): Promise<void> {
   const host = options.host ?? '0.0.0.0';
   const port = options.port ?? 8787;
   const advertisedHost = options.advertiseUrl ?? lanAddress();
   if (!advertisedHost) throw new Error('No LAN IPv4 address found. Connect to Wi-Fi or pass --url http://HOST:PORT.');
   const agentUrl = options.advertiseUrl ?? `http://${advertisedHost}:${port}`;
-  const oneTimeToken = token();
-  const manualCode = String(randomInt(10_000_000, 100_000_000));
+  const pairingEnabled = options.pairing ?? true;
+  const oneTimeToken = pairingEnabled ? token() : '';
+  const manualCode = pairingEnabled ? String(randomInt(10_000_000, 100_000_000)) : '';
   const expiresAt = Date.now() + 10 * 60 * 1000;
   let manualCodeAttempts = 0;
   const registry = new DeviceRegistry();
+  const identity = await new AgentIdentityStore().getOrCreate();
   const restoredDeviceCount = (await registry.read()).devices.length;
   const store = new FloatStore();
   const server = createServer(async (request, response) => {
@@ -111,9 +139,13 @@ export async function startPairingAgent(options: { host?: string; port?: number;
       log('request.received', { requestId, method: request.method, pathname, remoteAddress: request.socket.remoteAddress });
       if (request.method === 'GET' && pathname === '/v1/health') {
         log('health.succeeded', { requestId });
-        return json(response, 200, { status: 'ok', protocol: 1 });
+        return json(response, 200, { status: 'ok', protocol: 1, agentId: identity.agentId });
       }
       if (request.method === 'POST' && pathname === '/v1/pair') {
+        if (!pairingEnabled) {
+          log('pairing.rejected', { requestId, reason: 'pairing-not-enabled' });
+          return json(response, 403, { error: 'This background agent only serves previously paired devices. Run “float pair serve” to pair a new device.' });
+        }
         const payload = pairingSchema.parse(await body(request));
         const supplied = request.headers['x-float-pairing-token'];
         const suppliedCode = request.headers['x-float-pairing-code'];
@@ -129,7 +161,7 @@ export async function startPairingAgent(options: { host?: string; port?: number;
         }
         const deviceToken = await registry.issue(payload);
         log('pairing.succeeded', { requestId, deviceId: payload.deviceId, deviceName: payload.deviceName, credentialType: tokenMatches ? 'qr' : 'manual' });
-        return json(response, 201, { protocol: 1, deviceToken });
+        return json(response, 201, { protocol: 1, deviceToken, agentId: identity.agentId });
       }
       if (!(await registry.valid(bearer(request)))) {
         log('request.rejected', { requestId, reason: 'unpaired-device' });
@@ -166,14 +198,32 @@ export async function startPairingAgent(options: { host?: string; port?: number;
     }
   });
   await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(port, host, () => resolve()); });
+  const bonjour = new Bonjour();
+  const service = bonjour.publish({
+    name: `Float ${identity.agentId.slice(0, 8)}`,
+    type: 'float',
+    protocol: 'tcp',
+    port,
+    txt: { agentId: identity.agentId, protocol: '1' },
+  });
+  server.once('close', () => {
+    service.stop();
+    bonjour.destroy();
+    log('discovery.stopped', { agentId: identity.agentId });
+  });
   const pairingUri = `float://pair?url=${encodeURIComponent(agentUrl)}&token=${encodeURIComponent(oneTimeToken)}&v=1`;
   console.log(`Float paired-device agent listening at ${agentUrl}`);
-  log('agent.started', { agentUrl, host, port, dataPath: process.env.FLOAT_HOME ?? join(homedir(), '.float') });
+  log('agent.started', { agentUrl, host, port, dataPath: process.env.FLOAT_HOME ?? join(homedir(), '.float'), agentId: identity.agentId, pairingEnabled });
   log('pairing.registry.restored', { pairedDeviceCount: restoredDeviceCount });
-  console.log('Scan this QR code in Float within 10 minutes. Keep this terminal open while syncing.');
-  qrcode.generate(pairingUri, { small: true });
-  console.log(`Pairing code: ${pairingUri}`);
-  console.log(`Manual pairing: ${agentUrl}  •  code ${manualCode}`);
+  log('discovery.advertised', { service: '_float._tcp.local', port, agentId: identity.agentId });
+  if (pairingEnabled) {
+    console.log('Scan this QR code in Float within 10 minutes. Keep this terminal open while syncing.');
+    qrcode.generate(pairingUri, { small: true });
+    console.log(`Pairing code: ${pairingUri}`);
+    console.log(`Manual pairing: ${agentUrl}  •  code ${manualCode}`);
+  } else {
+    console.log('Float background agent is serving previously paired devices.');
+  }
   if (options.durationSeconds) setTimeout(() => server.close(), options.durationSeconds * 1000).unref();
   await new Promise<void>((resolve) => server.once('close', resolve));
 }

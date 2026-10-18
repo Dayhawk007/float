@@ -25,18 +25,19 @@ For every client-side change that affects UI or interaction, follow `DESIGN.md` 
 - Clipboard history is accessed through a compact icon beside its setting and opens in a modal; the main note list and floating overlay remain focused on saved notes. Each paste uses a plus action to save it as a note.
 - Main notes and overlay notes use visible scrollbars plus compact pages (20 notes in the app, 5 in the overlay) to keep each surface responsive and legible.
 - A paired device remains authorized after `float pair serve` restarts: token hashes are restored from the local agent registry, Android retains its device token, and sync requests time out after five seconds so the foreground retry loop can recover.
+- A persistent desktop agent can be installed per user with `float agent install`. It uses Task Scheduler on Windows, a LaunchAgent on macOS, or a user-level systemd service on Linux; it starts at sign-in and only serves devices that have already been paired.
+- Paired agents have a stable local identity and advertise `_float._tcp.local` on the trusted LAN. If the desktop receives a new LAN IP, Android searches for that identity after a sync failure, verifies it through the health endpoint, persists the recovered URL, and retries sync. Tokens and note contents are never advertised.
 - Account-free paired-device sync foundation: `float pair serve` creates a ten-minute QR credential plus an eight-digit manual code, issues a per-device token, and serves the desktop's local snippet store only while explicitly running on the local network. The Android app can scan the QR, enter the printed agent URL and code, stores its token in Android secure storage, and performs foreground last-write-wins sync.
 - Pairing and sync emit structured, privacy-safe diagnostics to Android `FloatPair` logs and the local agent terminal. They record stage, origin, status, count, elapsed time, and error type, never tokens or note contents.
 
 ### Explicitly not implemented
 
-- Accounts, authentication, hosted API, cloud database, deployment, analytics, crash reporting, background sync, and mDNS discovery.
+- Accounts, hosted API, cloud database, deployment, analytics, crash reporting, and background sync.
 - iOS, desktop GUI, browser extension, or remote MCP transport.
 - Automatic promotion of every clipboard change into a permanent note.
 
 ## Next work
 
-1. Test pairing and foreground sync on physical Android devices and common OEM variants.
-2. Add mDNS discovery for paired agents on trusted LANs.
-3. Add user-controlled retention limits and deletion controls for clipboard-history entries.
-4. Replace `shared_preferences` with a transactional local database before the data model grows to tags, lists, and export/import.
+1. Test auto-start and mDNS recovery on physical Android devices and common OEM variants.
+2. Add user-controlled retention limits and deletion controls for clipboard-history entries.
+3. Replace `shared_preferences` with a transactional local database before the data model grows to tags, lists, and export/import.

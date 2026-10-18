@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
+import 'local_agent_discovery.dart';
+
 const _pairedDeviceKey = 'float.paired-device.v1';
 const _networkTimeout = Duration(seconds: 5);
 
@@ -28,20 +30,24 @@ class PairedDevice {
     required this.agentUrl,
     required this.deviceId,
     required this.deviceToken,
+    this.agentId,
   });
   final String agentUrl;
   final String deviceId;
   final String deviceToken;
+  final String? agentId;
 
   Map<String, String> toJson() => {
     'agentUrl': agentUrl,
     'deviceId': deviceId,
     'deviceToken': deviceToken,
+    if (agentId != null) 'agentId': agentId!,
   };
   factory PairedDevice.fromJson(Map<String, dynamic> json) => PairedDevice(
     agentUrl: json['agentUrl'] as String,
     deviceId: json['deviceId'] as String,
     deviceToken: json['deviceToken'] as String,
+    agentId: json['agentId'] as String?,
   );
 }
 
@@ -124,14 +130,16 @@ class PairedSyncService {
     });
     late http.Response response;
     try {
-      response = await _client.post(
-        agent.replace(path: '/v1/pair'),
-        headers: {
-          'content-type': 'application/json',
-          pairingHeader: pairingCredential,
-        },
-        body: jsonEncode({'deviceId': deviceId, 'deviceName': deviceName}),
-      );
+      response = await _client
+          .post(
+            agent.replace(path: '/v1/pair'),
+            headers: {
+              'content-type': 'application/json',
+              pairingHeader: pairingCredential,
+            },
+            body: jsonEncode({'deviceId': deviceId, 'deviceName': deviceName}),
+          )
+          .timeout(_networkTimeout);
     } catch (error) {
       _log('pair.request.network_failed', {
         'agentUrl': agent.origin,
@@ -157,6 +165,7 @@ class PairedSyncService {
       agentUrl: agentUrl,
       deviceId: deviceId,
       deviceToken: payload['deviceToken'] as String,
+      agentId: payload['agentId'] as String?,
     );
     await _storage.write(
       key: _pairedDeviceKey,
@@ -170,6 +179,58 @@ class PairedSyncService {
     _log('paired_device.forget.started');
     await _storage.delete(key: _pairedDeviceKey);
     _log('paired_device.forget.succeeded');
+  }
+
+  Future<PairedDevice> refreshAgentIdentity(PairedDevice device) async {
+    if (device.agentId != null && device.agentId!.isNotEmpty) return device;
+    try {
+      final response = await _client
+          .get(_endpoint(device, '/v1/health'))
+          .timeout(_networkTimeout);
+      final agentId = _responseBody(response)['agentId'];
+      if (response.statusCode != 200 || agentId is! String || agentId.isEmpty) {
+        return device;
+      }
+      final identified = PairedDevice(
+        agentUrl: device.agentUrl,
+        deviceId: device.deviceId,
+        deviceToken: device.deviceToken,
+        agentId: agentId,
+      );
+      await _storage.write(
+        key: _pairedDeviceKey,
+        value: jsonEncode(identified.toJson()),
+      );
+      _log('agent_identity.persisted', {'agentUrl': device.agentUrl});
+      return identified;
+    } catch (_) {
+      return device;
+    }
+  }
+
+  Future<PairedDevice?> rediscover(PairedDevice device) async {
+    final agentId = device.agentId;
+    if (agentId == null || agentId.isEmpty) {
+      _log('discovery.skipped', {'reason': 'legacy-pairing'});
+      return null;
+    }
+    _log('discovery.started');
+    final discoveredUrl = await LocalAgentDiscovery(
+      client: _client,
+    ).findUrl(agentId);
+    if (discoveredUrl == null || discoveredUrl == device.agentUrl) return null;
+    final recovered = PairedDevice(
+      agentUrl: discoveredUrl,
+      deviceId: device.deviceId,
+      deviceToken: device.deviceToken,
+      agentId: agentId,
+    );
+    await _storage.write(
+      key: _pairedDeviceKey,
+      value: jsonEncode(recovered.toJson()),
+    );
+    _log('discovery.persisted', {'agentUrl': discoveredUrl});
+    return recovered;
   }
 
   Future<List<Map<String, dynamic>>> list(PairedDevice device) async {

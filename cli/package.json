@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
+    "bonjour-service": "^1.4.4",
     "clipboardy": "^4.0.0",
     "commander": "^13.0.0",
     "qrcode-terminal": "0.12.0",

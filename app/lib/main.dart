@@ -231,11 +231,22 @@ class _SnippetHomeState extends State<SnippetHome> {
   }
 
   Future<void> _syncNow({bool silent = false}) async {
-    final device = _pairedDevice;
+    var device = _pairedDevice;
     if (device == null || _syncing) return;
     if (mounted) setState(() => _syncing = true);
     try {
-      final remote = await _pairedSync.list(device);
+      device = await _pairedSync.refreshAgentIdentity(device);
+      if (mounted) setState(() => _pairedDevice = device);
+      List<Map<String, dynamic>> remote;
+      try {
+        remote = await _pairedSync.list(device);
+      } catch (_) {
+        final recovered = await _pairedSync.rediscover(device);
+        if (recovered == null) rethrow;
+        device = recovered;
+        if (mounted) setState(() => _pairedDevice = recovered);
+        remote = await _pairedSync.list(recovered);
+      }
       final local = {for (final snippet in _snippets) snippet.id: snippet};
       final remoteIds = <String>{};
       for (final item in remote) {

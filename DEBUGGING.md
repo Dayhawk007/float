@@ -6,7 +6,8 @@ This file is mandatory guidance for every feature that crosses a process or devi
 
 - Log a structured event at the start and completion of every request on both sides.
 - Include the operation, request ID where available, endpoint origin (never a credential-bearing URL), HTTP status, result count when useful, elapsed time, and error type.
-- Emit Android client diagnostics through the `FloatPair` log category so they are visible in `adb logcat`; emit local-agent diagnostics to its terminal with the `[float-agent]` prefix.
+- Emit Android client diagnostics through the `FloatPair` and `FloatDiscovery` log categories so they are visible in `adb logcat`; emit local-agent diagnostics to its terminal with the `[float-agent]` prefix.
+- For LAN discovery, log the discovery lifecycle and only the candidate endpoint and non-secret agent identity; never log the pairing credential or device token.
 - Convert transport failures into actionable user messages: whether the agent is reachable, whether the pairing credential expired or was rejected, and the next recovery action.
 - Test the success path and at least one rejected or unavailable-peer path before completing a networked feature.
 

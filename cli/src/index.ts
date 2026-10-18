@@ -5,6 +5,7 @@ import clipboard from 'clipboardy';
 import { FloatStore, type Snippet } from './store.js';
 import { startMcpServer } from './mcp.js';
 import { startPairingAgent } from './pairing_agent.js';
+import { agentAutoStartStatus, installAgentAutoStart, uninstallAgentAutoStart } from './agent_autostart.js';
 
 const store = new FloatStore();
 const program = new Command();
@@ -36,5 +37,10 @@ program.command('delete <id>').description('Permanently delete a snippet').requi
 program.command('export <path>').description('Export all local Float data as JSON').action(async (path) => { await writeFile(path, `${JSON.stringify(await store.export(), null, 2)}\n`, 'utf8'); console.log(`Exported Float data to ${path}`); });
 program.command('mcp').description('Run Float as a local stdio MCP server').command('serve').description('Start the local-only MCP server').action(startMcpServer);
 program.command('pair').description('Pair an Android device with this local Float store').command('serve').description('Show a QR code and serve paired devices on the local network').option('--host <host>', 'Address to bind', '0.0.0.0').option('--port <port>', 'Port to listen on', '8787').option('--url <url>', 'LAN URL to place in the pairing QR code').option('--duration <seconds>', 'Stop after this many seconds').action((options) => startPairingAgent({ host: options.host, port: Number(options.port), advertiseUrl: options.url, durationSeconds: options.duration ? Number(options.duration) : undefined }));
+const agent = program.command('agent').description('Manage the persistent paired-device agent');
+agent.command('serve').description('Serve already-paired devices and advertise on the trusted LAN').option('--host <host>', 'Address to bind', '0.0.0.0').option('--port <port>', 'Port to listen on', '8787').option('--url <url>', 'LAN URL to advertise').action((options) => startPairingAgent({ host: options.host, port: Number(options.port), advertiseUrl: options.url, pairing: false }));
+agent.command('install').description('Start the persistent local agent automatically when you sign in').action(async () => { const status = await installAgentAutoStart(); console.log(`Installed Float agent auto-start (${status.platform}) at ${status.location}`); });
+agent.command('status').description('Show whether the persistent local agent starts automatically').action(async () => { const status = await agentAutoStartStatus(); console.log(JSON.stringify(status, null, 2)); });
+agent.command('uninstall').description('Stop and remove the persistent agent auto-start entry').action(async () => { const status = await uninstallAgentAutoStart(); console.log(`Removed Float agent auto-start (${status.platform}) from ${status.location}`); });
 
 program.parseAsync().catch((error: Error) => { console.error(`float: ${error.message}`); process.exitCode = 1; });
