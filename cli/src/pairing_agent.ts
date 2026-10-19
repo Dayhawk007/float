@@ -281,9 +281,9 @@ export async function startPairingAgent(options: { host?: string; port?: number;
         return json(response, 401, { error: 'A paired-device token is required.' });
       }
       if (request.method === 'GET' && pathname === '/v1/snippets') {
-        const snippets = await store.list();
-        log('sync.pull.succeeded', { requestId, count: snippets.length });
-        return json(response, 200, { snippets });
+        const snapshot = await store.syncSnapshot();
+        log('sync.pull.succeeded', { requestId, count: snapshot.snippets.length, deletedCount: snapshot.deletedIds.length });
+        return json(response, 200, snapshot);
       }
       const snippetMatch = pathname.match(/^\/v1\/snippets\/([^/]+)$/);
       if (request.method === 'PUT' && snippetMatch) {

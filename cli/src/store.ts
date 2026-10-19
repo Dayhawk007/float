@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, open, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { z } from 'zod';
@@ -21,6 +21,7 @@ const snippetSchema = z.object({
 const databaseSchema = z.object({
   version: z.literal(1),
   snippets: z.array(snippetSchema),
+  deletedIds: z.array(z.string().min(1)).default([]),
 });
 
 export type Snippet = z.infer<typeof snippetSchema>;
@@ -34,17 +35,47 @@ export class FloatStore {
       return databaseSchema.parse(JSON.parse(await readFile(this.filePath, 'utf8')));
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        return { version: 1, snippets: [] };
+        return { version: 1, snippets: [], deletedIds: [] };
       }
       throw new Error(`Could not read Float data at ${this.filePath}: ${(error as Error).message}`);
     }
   }
 
-  private async save(data: Database): Promise<void> {
+  private async saveUnlocked(data: Database): Promise<void> {
     await mkdir(dirname(this.filePath), { recursive: true });
     const temporaryPath = `${this.filePath}.tmp`;
     await writeFile(temporaryPath, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
     await rename(temporaryPath, this.filePath);
+  }
+
+  /** Serialize read-modify-write operations across multiple Float processes. */
+  private async withWriteLock<T>(operation: () => Promise<T>): Promise<T> {
+    const lockPath = `${this.filePath}.lock`;
+    await mkdir(dirname(this.filePath), { recursive: true });
+    const deadline = Date.now() + 10_000;
+    let lock;
+    while (!lock) {
+      try {
+        lock = await open(lockPath, 'wx');
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'EEXIST' || Date.now() >= deadline) {
+          throw new Error(`Could not acquire Float data lock at ${lockPath}.`);
+        }
+        try {
+          const ageMs = Date.now() - (await stat(lockPath)).mtimeMs;
+          if (ageMs > 60_000) await unlink(lockPath);
+        } catch {
+          // The lock may have been released between the existence check and read.
+        }
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+    }
+    try {
+      return await operation();
+    } finally {
+      await lock.close();
+      await unlink(lockPath).catch(() => undefined);
+    }
   }
 
   async list(query?: string, group?: string): Promise<Snippet[]> {
@@ -64,55 +95,72 @@ export class FloatStore {
     return snippet;
   }
 
-  async create(input: Pick<Snippet, 'title' | 'body'> & Partial<Pick<Snippet, 'list' | 'group' | 'pinned'>>): Promise<Snippet> {
-    const timestamp = new Date().toISOString();
-    const snippet = snippetSchema.parse({
-      id: randomUUID(), title: input.title.trim(), body: input.body,
-      list: input.list?.trim() || null, group: input.group?.trim() || 'General', pinned: input.pinned ?? false,
-      createdAt: timestamp, updatedAt: timestamp, lastUsedAt: null,
-    });
+  async syncSnapshot(): Promise<{ snippets: Snippet[]; deletedIds: string[] }> {
     const database = await this.read();
-    database.snippets.push(snippet);
-    await this.save(database);
-    return snippet;
+    return { snippets: database.snippets, deletedIds: database.deletedIds };
+  }
+
+  async create(input: Pick<Snippet, 'title' | 'body'> & Partial<Pick<Snippet, 'list' | 'group' | 'pinned'>>): Promise<Snippet> {
+    return this.withWriteLock(async () => {
+      const timestamp = new Date().toISOString();
+      const snippet = snippetSchema.parse({
+        id: randomUUID(), title: input.title.trim(), body: input.body,
+        list: input.list?.trim() || null, group: input.group?.trim() || 'General', pinned: input.pinned ?? false,
+        createdAt: timestamp, updatedAt: timestamp, lastUsedAt: null,
+      });
+      const database = await this.read();
+      database.snippets.push(snippet);
+      await this.saveUnlocked(database);
+      return snippet;
+    });
   }
 
   async update(id: string, input: Partial<Pick<Snippet, 'title' | 'body' | 'list' | 'group' | 'pinned'>>): Promise<Snippet> {
-    const database = await this.read();
-    const index = database.snippets.findIndex((item) => item.id === id);
-    if (index === -1) throw new Error(`No Float snippet found with id ${id}.`);
-    const existing = database.snippets[index];
-    const updated = snippetSchema.parse({ ...existing, ...input, updatedAt: new Date().toISOString() });
-    database.snippets[index] = updated;
-    await this.save(database);
-    return updated;
+    return this.withWriteLock(async () => {
+      const database = await this.read();
+      const index = database.snippets.findIndex((item) => item.id === id);
+      if (index === -1) throw new Error(`No Float snippet found with id ${id}.`);
+      const existing = database.snippets[index];
+      const updated = snippetSchema.parse({ ...existing, ...input, updatedAt: new Date().toISOString() });
+      database.snippets[index] = updated;
+      await this.saveUnlocked(database);
+      return updated;
+    });
   }
 
   async upsert(snippet: Snippet): Promise<Snippet> {
-    const validated = snippetSchema.parse(snippet);
-    const database = await this.read();
-    const index = database.snippets.findIndex((item) => item.id === validated.id);
-    if (index === -1) database.snippets.push(validated);
-    else database.snippets[index] = validated;
-    await this.save(database);
-    return validated;
+    return this.withWriteLock(async () => {
+      const validated = snippetSchema.parse(snippet);
+      const database = await this.read();
+      if (database.deletedIds.includes(validated.id)) return validated;
+      const index = database.snippets.findIndex((item) => item.id === validated.id);
+      if (index === -1) database.snippets.push(validated);
+      else database.snippets[index] = validated;
+      await this.saveUnlocked(database);
+      return validated;
+    });
   }
 
   async markUsed(id: string): Promise<Snippet> {
-    const database = await this.read();
-    const index = database.snippets.findIndex((item) => item.id === id);
-    if (index === -1) throw new Error(`No Float snippet found with id ${id}.`);
-    const updated = { ...database.snippets[index], lastUsedAt: new Date().toISOString(), updatedAt: database.snippets[index].updatedAt };
-    database.snippets[index] = updated;
-    await this.save(database);
-    return updated;
+    return this.withWriteLock(async () => {
+      const database = await this.read();
+      const index = database.snippets.findIndex((item) => item.id === id);
+      if (index === -1) throw new Error(`No Float snippet found with id ${id}.`);
+      const updated = { ...database.snippets[index], lastUsedAt: new Date().toISOString(), updatedAt: database.snippets[index].updatedAt };
+      database.snippets[index] = updated;
+      await this.saveUnlocked(database);
+      return updated;
+    });
   }
 
   async remove(id: string): Promise<void> {
-    const database = await this.read();
-    const snippets = database.snippets.filter((item) => item.id !== id);
-    if (snippets.length === database.snippets.length) throw new Error(`No Float snippet found with id ${id}.`);
-    await this.save({ ...database, snippets });
+    await this.withWriteLock(async () => {
+      const database = await this.read();
+      const snippets = database.snippets.filter((item) => item.id !== id);
+      if (snippets.length === database.snippets.length) throw new Error(`No Float snippet found with id ${id}.`);
+      const deletedIds = database.deletedIds.includes(id) ? database.deletedIds : [...database.deletedIds, id];
+      await this.saveUnlocked({ ...database, snippets, deletedIds });
+    });
   }
 
   async export(): Promise<Database> { return this.read(); }

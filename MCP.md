@@ -38,10 +38,13 @@ Give the agent a short instruction such as: “Use Float for reusable context. S
 1. call `search_snippets` before answering or creating duplicate context;
 2. call `get_snippet` when it needs the full body of a candidate note;
 3. call `create_snippet` for a new reusable URL, template, answer, or workflow note;
-4. call `update_snippet` when the user asks it to revise or pin an existing note.
+4. call `update_snippet` when the user asks it to revise or pin an existing note;
+5. call `delete_snippet` only when the user explicitly asks to permanently delete a note.
 
 The MCP tools write to the same local store used by the CLI. If the Android phone is paired and `float pair serve` is running, the next foreground sync pulls those changes to the phone and refreshes the floating overlay.
 
+Deletes are recorded as sync tombstones. This prevents a stale paired device from re-uploading a note after it was deleted through MCP or the CLI; updated Android clients consume those tombstones and remove the local copy as well.
+
 ## Safety boundary
 
-MCP access is local and explicit. The agent can only read or change Float snippets through the four registered tools. It does not receive clipboard history automatically, cannot access the Android overlay directly, and cannot reach a hosted service.
+MCP access is local and explicit. The agent can only read or change Float snippets through the five registered tools. Deletion is permanent and requires an explicit user request. It does not receive clipboard history automatically, cannot access the Android overlay directly, and cannot reach a hosted service.

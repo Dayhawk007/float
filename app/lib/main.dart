@@ -250,27 +250,33 @@ class _SnippetHomeState extends State<SnippetHome> with WidgetsBindingObserver {
     try {
       device = await _pairedSync.refreshAgentIdentity(device);
       if (mounted) setState(() => _pairedDevice = device);
-      List<Map<String, dynamic>> remote;
+      SyncSnapshot snapshot;
       try {
-        remote = await _pairedSync.list(device);
+        snapshot = await _pairedSync.list(device);
       } catch (_) {
         final recovered = await _pairedSync.rediscover(device);
         if (recovered == null) rethrow;
         device = recovered;
         if (mounted) setState(() => _pairedDevice = recovered);
-        remote = await _pairedSync.list(recovered);
+        snapshot = await _pairedSync.list(recovered);
       }
+      final remote = snapshot.snippets;
       final local = {for (final snippet in _snippets) snippet.id: snippet};
+      for (final deletedId in snapshot.deletedIds) {
+        local.remove(deletedId);
+      }
       final remoteIds = <String>{};
       for (final item in remote) {
         final snippet = Snippet.fromJson(item);
         remoteIds.add(snippet.id);
+        if (snapshot.deletedIds.contains(snippet.id)) continue;
         if (!local.containsKey(snippet.id) ||
             snippet.updatedAt.isAfter(local[snippet.id]!.updatedAt)) {
           local[snippet.id] = snippet;
         }
       }
       for (final snippet in local.values) {
+        if (snapshot.deletedIds.contains(snippet.id)) continue;
         if (!remoteIds.contains(snippet.id) ||
             snippet.updatedAt.isAfter(
               (remote

@@ -63,7 +63,7 @@ command: node
 args: ["E:\\Development\\float\\cli\\dist\\index.js", "mcp", "serve"]
 ```
 
-The MCP server is local stdio only. It exposes `search_snippets`, `get_snippet`, `create_snippet`, and `update_snippet`; it neither opens a network port nor sends data to a cloud service. The optional paired-device agent is separate and only opens a LAN port while `float pair serve` is running.
+The MCP server is local stdio only. It exposes `search_snippets`, `get_snippet`, `create_snippet`, `update_snippet`, and `delete_snippet`; it neither opens a network port nor sends data to a cloud service. The optional paired-device agent is separate and only opens a LAN port while `float pair serve` is running.
 
 ### Clipboard shelf
 

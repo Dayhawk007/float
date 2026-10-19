@@ -35,5 +35,14 @@ export async function startMcpServer(): Promise<void> {
     inputSchema: { id: z.string().min(1), title: z.string().min(1).optional(), body: z.string().optional(), list: z.string().nullable().optional(), group: z.string().optional(), pinned: z.boolean().optional() },
   }, async ({ id, ...fields }) => result(await store.update(id, fields)));
 
+  server.registerTool('delete_snippet', {
+    title: 'Delete a Float snippet',
+    description: 'Permanently delete one local Float snippet by ID. Use only when the user has explicitly requested deletion.',
+    inputSchema: { id: z.string().min(1) },
+  }, async ({ id }) => {
+    await store.remove(id);
+    return result({ deleted: true, id });
+  });
+
   await server.connect(new StdioServerTransport());
 }

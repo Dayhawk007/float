@@ -51,6 +51,12 @@ class PairedDevice {
   );
 }
 
+class SyncSnapshot {
+  const SyncSnapshot({required this.snippets, required this.deletedIds});
+  final List<Map<String, dynamic>> snippets;
+  final Set<String> deletedIds;
+}
+
 class PairedSyncService {
   PairedSyncService({http.Client? client, FlutterSecureStorage? storage})
     : _client = client ?? http.Client(),
@@ -233,7 +239,7 @@ class PairedSyncService {
     return recovered;
   }
 
-  Future<List<Map<String, dynamic>>> list(PairedDevice device) async {
+  Future<SyncSnapshot> list(PairedDevice device) async {
     final endpoint = _endpoint(device, '/v1/snippets');
     final stopwatch = Stopwatch()..start();
     _log('sync.pull.started', {'agentUrl': endpoint.origin});
@@ -263,8 +269,14 @@ class PairedSyncService {
     }
     final snippets = (payload['snippets'] as List<dynamic>)
         .cast<Map<String, dynamic>>();
-    _log('sync.pull.succeeded', {'count': snippets.length});
-    return snippets;
+    final deletedIds = (payload['deletedIds'] as List<dynamic>? ?? const [])
+        .cast<String>()
+        .toSet();
+    _log('sync.pull.succeeded', {
+      'count': snippets.length,
+      'deletedCount': deletedIds.length,
+    });
+    return SyncSnapshot(snippets: snippets, deletedIds: deletedIds);
   }
 
   Future<void> upsert(PairedDevice device, Map<String, Object> snippet) async {
