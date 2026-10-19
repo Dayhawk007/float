@@ -330,9 +330,36 @@ class _SnippetHomeState extends State<SnippetHome> {
             'This phone syncs only with the paired local Float agent while both are reachable on the same network.',
           ),
           actions: [
-            TextButton(
-              onPressed: _syncing ? null : _syncNow,
-              child: Text(_syncing ? 'Syncing…' : 'Sync now'),
+            TextButton.icon(
+              onPressed: _syncing
+                  ? null
+                  : () async {
+                      Navigator.pop(dialogContext);
+                      ScaffoldMessenger.of(context)
+                        ..hideCurrentSnackBar()
+                        ..showSnackBar(
+                          const SnackBar(
+                            duration: Duration(minutes: 1),
+                            content: Row(
+                              children: [
+                                SizedBox(
+                                  width: 17,
+                                  height: 17,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                SizedBox(width: 12),
+                                Text('Syncing with paired device…'),
+                              ],
+                            ),
+                          ),
+                        );
+                      await _syncNow();
+                    },
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('Sync now'),
             ),
             TextButton(
               onPressed: () async {
@@ -632,9 +659,12 @@ class _SnippetHomeState extends State<SnippetHome> {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: IconButton(
-                tooltip: 'Show floating overlay',
+                tooltip: 'Show floating notes',
                 onPressed: _showOverlay,
-                icon: const Icon(Icons.open_in_new_rounded, size: 19),
+                icon: const Icon(
+                  Icons.picture_in_picture_alt_outlined,
+                  size: 20,
+                ),
               ),
             ),
           ),
@@ -842,7 +872,7 @@ class _SnippetEditorDialogState extends State<_SnippetEditorDialog> {
           TextField(
             controller: _groupController,
             textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Group',
               hintText: suggestedSnippetGroups.skip(1).join(', '),
             ),

@@ -126,14 +126,32 @@ class _OverlayHandle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Center(
-    child: Material(
-      color: FloatTheme.ink,
-      elevation: 0,
-      shape: const CircleBorder(),
-      child: const SizedBox(
-        width: 64,
-        height: 64,
-        child: Icon(Icons.notes_rounded, color: Colors.white, size: 25),
+    child: SizedBox(
+      width: 64,
+      height: 64,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          const Material(
+            color: FloatTheme.ink,
+            elevation: 0,
+            shape: CircleBorder(),
+            child: SizedBox(width: 64, height: 64),
+          ),
+          const Icon(Icons.layers_rounded, color: Colors.white, size: 29),
+          Positioned(
+            right: 9,
+            top: 18,
+            bottom: 18,
+            child: Container(
+              width: 3,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.all(Radius.circular(3)),
+              ),
+            ),
+          ),
+        ],
       ),
     ),
   );

@@ -36,6 +36,7 @@ Float should feel calm, immediate, and lightweight: a quiet utility that is read
 - Avoid looping animation, bouncy physics, lengthy page transitions, or motion that competes with note retrieval.
 - Preserve native-feeling Android interaction feedback, but do not add ripples, shadows, or haptics solely for ornament.
 - The floating handle must stay easy to see and touch. Dragging snaps horizontally to an edge; tapping expands it; the expanded panel must remain easy to dismiss.
+- The compact handle remains borderless and shadowless. On dark content, use a substantial white internal glyph/cue rather than an outer stroke to retain visibility.
 
 ## Accessibility and readability
 

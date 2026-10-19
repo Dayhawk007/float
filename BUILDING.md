@@ -30,6 +30,7 @@ For every client-side change that affects UI or interaction, follow `DESIGN.md` 
 - Account-free paired-device sync foundation: `float pair serve` creates a ten-minute QR credential plus an eight-digit manual code, issues a per-device token, and serves the desktop's local snippet store only while explicitly running on the local network. The Android app can scan the QR, enter the printed agent URL and code, stores its token in Android secure storage, and performs foreground last-write-wins sync.
 - Pairing and sync emit structured, privacy-safe diagnostics to Android `FloatPair` logs and the local agent terminal. They record stage, origin, status, count, elapsed time, and error type, never tokens or note contents.
 - Notes carry a portable `group` field (default: `General`). The Android editor supports groups such as Jobs, Cold posting, Profile, and Preferences; the main list navigates them with chips, the overlay searches and sections pinned notes by group, and CLI/MCP/sync preserve the same field.
+- The overlay launcher uses a picture-in-picture control in the app and a high-contrast, borderless stacked-notes handle. Manual paired-device sync closes its status dialog, shows an in-progress indicator, then replaces it with the sync result.
 
 ### Explicitly not implemented
 
