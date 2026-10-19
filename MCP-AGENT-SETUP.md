@@ -76,4 +76,3 @@ data to a hosted service. The optional Android pairing agent is separate.
 After setup, report the resolved CLI path, the client configuration target, the
 build result, and the discovered tool names. Do not print note contents or
 credentials.
-
