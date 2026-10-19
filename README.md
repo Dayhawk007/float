@@ -37,90 +37,57 @@ packages/  Local Flutter overlay dependency
 docs/      Public screenshots and project documentation
 ```
 
-## Quick start
+## Setup
 
-### Prerequisites
+### Fast path: ask an agent
 
-- Node.js 20+
-- pnpm
-- Flutter SDK and Android SDK (for the Android client)
-- An Android device or emulator
+Point a terminal-capable agent at [AGENT-SETUP.md](AGENT-SETUP.md). It checks
+prerequisites, builds the CLI, registers the local MCP server, and can prepare
+the Android app, pairing, and startup sync without cloud setup.
 
-### Build the local tools
+### Manual path
 
-```powershell
-pnpm install
-pnpm --dir cli build
-```
+1. Build the desktop companion:
 
-The CLI stores data in `%USERPROFILE%\\.float\\snippets.json` by default. Set `FLOAT_HOME` to use an isolated local data directory.
+   ```powershell
+   pnpm install
+   pnpm --dir cli build
+   ```
 
-Create and search a note:
+2. Run Android:
 
-```powershell
-node cli/dist/index.js create --title "Availability" --body "I can start immediately." --group "Job profile information" --pin
-node cli/dist/index.js search availability --json
-```
+   ```powershell
+   cd app
+   flutter pub get
+   flutter run
+   ```
 
-### Run the Android client
+   For a real device, pass `--dart-define=FLOAT_AGENT_URL=http://YOUR_PC_WIFI_IP:8787`.
 
-```powershell
-cd app
-flutter pub get
-flutter run
-```
+3. Pair once on the same trusted Wi-Fi:
 
-For a real device, pass the desktop agent URL without editing source:
+   ```powershell
+   node cli/dist/index.js pair serve
+   ```
 
-```powershell
-flutter run --dart-define=FLOAT_AGENT_URL=http://YOUR_PC_WIFI_IP:8787
-```
+   Scan the QR in Float or enter the printed eight-digit code. Use
+   `node cli/dist/index.js pair show` if an agent is already running.
 
-### Pair the phone and computer
+4. Keep sync available after login (optional):
 
-On the computer, start a ten-minute pairing session:
+   ```powershell
+   node cli/dist/index.js agent install
+   ```
 
-```powershell
-node cli/dist/index.js pair serve
-```
+5. Add MCP using [MCP.md](MCP.md) or the agent runbook. The server command is:
 
-Float prints a QR code and an eight-digit manual code. In the Android app, tap the link icon, scan the QR, or enter the local-agent URL and code manually. If an agent is already running, reprint its active pairing details without starting another server:
+   ```text
+   node cli/dist/index.js mcp serve
+   ```
 
-```powershell
-node cli/dist/index.js pair show
-```
-
-Pairing is local-only. The phone retains its token securely, while the agent restores token hashes from `%USERPROFILE%\\.float\\paired-devices.json`, so a desktop restart does not require pairing again.
-
-### Keep sync available after login
-
-Install the per-user background agent once:
-
-```powershell
-node cli/dist/index.js agent install
-node cli/dist/index.js agent status
-```
-
-This uses Task Scheduler/Run key on Windows, a LaunchAgent on macOS, and a user-level systemd service on Linux. It does not deploy anything to the cloud.
-
-## MCP: give your AI assistant a private shelf
-
-Float’s MCP server runs over local stdio, so an agent can use your notes without opening a network port. Build the CLI first, then add this server entry to Codex, Claude Desktop, Cursor, or another MCP-compatible client:
-
-```json
-{
-  "mcpServers": {
-    "float": {
-      "command": "node",
-      "args": ["E:\\Development\\float\\cli\\dist\\index.js", "mcp", "serve"]
-    }
-  }
-}
-```
-
-Available tools are `search_snippets`, `get_snippet`, `create_snippet`, `update_snippet`, and `delete_snippet`. A useful agent workflow is: search before asking the user to repeat context, create a note when the user explicitly asks to remember something, and update the existing note when improving it. See [MCP.md](MCP.md) for client-specific guidance and [MCP-AGENT-SETUP.md](MCP-AGENT-SETUP.md) for an agent-readable setup runbook.
-
-When a phone is paired and the local agent is reachable, the Android client pulls the latest notes during foreground sync. MCP itself remains local stdio; it does not send note contents to a hosted service.
+The CLI stores data in `%USERPROFILE%\\.float\\snippets.json` by default. See
+[MCP-AGENT-SETUP.md](MCP-AGENT-SETUP.md) for MCP-specific safety and tool
+guidance, and [MCP.md](MCP.md) for client configuration examples.
 
 ## Clipboard shelf
 
