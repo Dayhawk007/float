@@ -1,24 +1,69 @@
 # Float
 
-Float is a local-first Android notes and clipboard utility with a desktop CLI and local stdio MCP companion. It has no accounts, deployments, or cloud services: optional sync is directly between a paired phone and the user’s computer on a trusted local network.
+> Clipboard on steroids—without the gym membership.
 
-## What it includes
+Float is a lightweight, local-first shelf for the words you reuse. It keeps useful notes, templates, links, and recent pastes one tap away on Android, then gives your desktop CLI and AI tools the same private library through a local MCP server.
 
-- A lightweight Android note library with groups, search, pinned notes, and pagination.
-- A required floating handle for copying pinned notes over other apps, with system overlay permission requested on first use.
-- An opt-in, device-local clipboard shelf for saving useful pastes as notes.
-- A TypeScript CLI and local MCP server so AI tools can search, create, update, and delete notes.
-- QR or manual-code pairing between the phone and a persistent local desktop agent.
+![Float main screen](docs/screenshots/float-main.png)
+
+## Why Float exists
+
+Float started with a very ordinary frustration: filling out forms meant hunting through clipboard history, scattered notes, old chats, and open tabs for the one paragraph or URL I needed to paste again. Float turns that scavenger hunt into a small, searchable shelf that stays close while you work.
+
+No account. No hosted backend. No mystery sync. Pair your phone with your computer on a trusted local network and keep the useful bits moving between your devices.
+
+## See it in action
+
+<p align="center">
+  <img src="docs/screenshots/float-overlay.png" alt="Float overlay with searchable pinned notes" width="230" />
+  <img src="docs/screenshots/float-groups.png" alt="Float notes organized into groups" width="230" />
+  <img src="docs/screenshots/float-pairing.png" alt="Float local device pairing dialog" width="230" />
+</p>
+
+## What you get
+
+- **A calm Android shelf** — groups, search, pins, pagination, and a monochromatic UI for notes that are meant to be reused.
+- **A floating handle** — tap the always-available edge handle over another app to open pinned notes and copy one with a single tap.
+- **A clipboard shelf** — opt in to keep recent text pastes locally, then save only the useful ones as normal notes.
+- **A desktop companion** — the TypeScript CLI stores your notes locally, runs the paired-device agent, and exposes a local stdio MCP server.
+- **Agent-ready context** — Codex, Claude Desktop, Cursor, and other MCP clients can search, create, update, and delete Float notes.
+- **Private pairing** — QR code or an eight-digit code, with no accounts and no cloud dependency.
 
 ## Project layout
 
-- `app/` — Flutter Android application with local snippet CRUD, pinning, search, and device-local persistence.
-- `cli/` — TypeScript CLI, persistent paired-device agent, and local stdio MCP server.
-- `packages/` — local Flutter overlay dependency.
+```text
+app/       Flutter Android application
+cli/       TypeScript CLI, local agent, and MCP server
+packages/  Local Flutter overlay dependency
+docs/      Public screenshots and project documentation
+```
 
-## Run locally
+## Quick start
 
-### Android app
+### Prerequisites
+
+- Node.js 20+
+- pnpm
+- Flutter SDK and Android SDK (for the Android client)
+- An Android device or emulator
+
+### Build the local tools
+
+```powershell
+pnpm install
+pnpm --dir cli build
+```
+
+The CLI stores data in `%USERPROFILE%\\.float\\snippets.json` by default. Set `FLOAT_HOME` to use an isolated local data directory.
+
+Create and search a note:
+
+```powershell
+node cli/dist/index.js create --title "Availability" --body "I can start immediately." --group "Job profile information" --pin
+node cli/dist/index.js search availability --json
+```
+
+### Run the Android client
 
 ```powershell
 cd app
@@ -26,74 +71,88 @@ flutter pub get
 flutter run
 ```
 
-### CLI
+For a real device, pass the desktop agent URL without editing source:
 
 ```powershell
-pnpm install
-pnpm --dir cli build
-node cli/dist/index.js create --title "Availability" --body "I can start immediately." --group "Job profile information" --pin
-node cli/dist/index.js search availability --json
+flutter run --dart-define=FLOAT_AGENT_URL=http://YOUR_PC_WIFI_IP:8787
 ```
 
-The CLI persists to `%USERPROFILE%\\.float\\snippets.json` by default. Set `FLOAT_HOME` to use an isolated local data directory.
+### Pair the phone and computer
 
-### Keep the local agent available
+On the computer, start a ten-minute pairing session:
 
-To make paired-device sync available after sign-in without manually starting a terminal, install the per-user agent once:
+```powershell
+node cli/dist/index.js pair serve
+```
+
+Float prints a QR code and an eight-digit manual code. In the Android app, tap the link icon, scan the QR, or enter the local-agent URL and code manually. If an agent is already running, reprint its active pairing details without starting another server:
+
+```powershell
+node cli/dist/index.js pair show
+```
+
+Pairing is local-only. The phone retains its token securely, while the agent restores token hashes from `%USERPROFILE%\\.float\\paired-devices.json`, so a desktop restart does not require pairing again.
+
+### Keep sync available after login
+
+Install the per-user background agent once:
 
 ```powershell
 node cli/dist/index.js agent install
 node cli/dist/index.js agent status
 ```
 
-It uses Task Scheduler or the Windows Run key on Windows, a LaunchAgent on macOS, and a user-level systemd service on Linux. The background agent serves only devices that have already been paired.
+This uses Task Scheduler/Run key on Windows, a LaunchAgent on macOS, and a user-level systemd service on Linux. It does not deploy anything to the cloud.
 
-### Pair an Android device locally
+## MCP: give your AI assistant a private shelf
 
-On the same trusted Wi-Fi network, run:
+Float’s MCP server runs over local stdio, so an agent can use your notes without opening a network port. Build the CLI first, then add this server entry to Codex, Claude Desktop, Cursor, or another MCP-compatible client:
+
+```json
+{
+  "mcpServers": {
+    "float": {
+      "command": "node",
+      "args": ["E:\\Development\\float\\cli\\dist\\index.js", "mcp", "serve"]
+    }
+  }
+}
+```
+
+Available tools are `search_snippets`, `get_snippet`, `create_snippet`, `update_snippet`, and `delete_snippet`. A useful agent workflow is: search before asking the user to repeat context, create a note when the user explicitly asks to remember something, and update the existing note when improving it. See [MCP.md](MCP.md) for client-specific guidance and [MCP-AGENT-SETUP.md](MCP-AGENT-SETUP.md) for an agent-readable setup runbook.
+
+When a phone is paired and the local agent is reachable, the Android client pulls the latest notes during foreground sync. MCP itself remains local stdio; it does not send note contents to a hosted service.
+
+## Clipboard shelf
+
+Clipboard history is opt-in. While Float is open, it keeps the latest 20 text pastes in a separate “Latest pastes” modal. Tapping an item copies it again; tapping **+** saves it as a normal Float note. Clipboard entries are never silently turned into notes or synced unless you choose to save them. Android limits background clipboard access for ordinary apps, so continuous background history is intentionally out of scope.
+
+## Release build
+
+Build a distributable Android APK locally:
 
 ```powershell
-node cli/dist/index.js pair serve
+cd app
+flutter build apk --release
 ```
 
-The CLI prints a one-time pairing URI, terminal QR code, and an eight-digit manual code. In Float, choose the link icon, scan the QR code, or enter the printed local-agent URL and manual code. Pairing credentials expire after ten minutes; after pairing, the phone holds a device token in Android secure storage and syncs only while the local agent is running and reachable. This is peer-to-peer local development: it creates no account and sends no data to a hosted service.
+The artifact is written to `app/build/app/outputs/flutter-apk/app-release.apk`. GitHub releases are published from the CLI and include this APK as an asset.
 
-If the pairing server is already running and its terminal is unavailable, use `node cli/dist/index.js pair show`. It contacts that existing local process over loopback and reprints the active QR and manual code without starting a second server or opening another port.
+## Privacy and diagnostics
 
-If the persistent `float agent serve` process already owns the default port, `float pair serve` opens a ten-minute pairing session on that same process and prints its QR. It does not start a second agent or interrupt already-paired devices.
+Notes, clipboard entries, pairing credentials, and agent state stay on your devices. Pairing credentials expire after ten minutes. For troubleshooting, keep the agent terminal open and inspect `[float-agent]` events; Android pairing events are available with:
 
-If the computer or agent restarts, paired-device token hashes are restored from `%USERPROFILE%\\.float\\paired-devices.json`, while the phone retains its token in Android secure storage. Float retries foreground sync automatically. If the PC obtains a new LAN address, Android discovers the local agent again by its stable identity.
-
-### Pairing diagnostics
-
-Keep the `float pair serve` terminal open during pairing. It prints `[float-agent]` request events with the request ID, route, status, and safe failure reason. Android emits matching `FloatPair` events to `adb logcat`; use `adb logcat | Select-String FloatPair` on Windows. The agent prefers physical Wi-Fi/Ethernet interfaces over virtual adapters; if needed, explicitly pass `--url http://YOUR_PC_WIFI_IP:8787`. These logs deliberately omit pairing codes, tokens, and note contents.
-
-### MCP server
-
-See [MCP.md](MCP.md) for client setup and the recommended agent workflow. For agent-driven installation, provide [MCP-AGENT-SETUP.md](MCP-AGENT-SETUP.md) to an MCP-capable agent.
-
-Build the CLI, then configure Codex, Claude Desktop, Cursor, or another MCP-compatible client to launch:
-
-```text
-command: node
-args: ["E:\\Development\\float\\cli\\dist\\index.js", "mcp", "serve"]
+```powershell
+adb logcat | Select-String FloatPair
 ```
-
-The MCP server is local stdio only. It exposes `search_snippets`, `get_snippet`, `create_snippet`, `update_snippet`, and `delete_snippet`; it neither opens a network port nor sends data to a cloud service. An AI client can use those tools to create and organize notes, and the paired Android device syncs them from the local agent.
-
-### Clipboard shelf
-
-Clipboard history is opt-in. When enabled, Float keeps the latest 20 text pastes it can observe while the app is open, and reads the current clipboard when Float opens, in a local “Latest pastes” shelf. Tapping a paste copies it again; the bookmark action saves it as a normal Float note. Clipboard entries are not silently converted into notes and are not synced unless explicitly saved. Android prevents ordinary apps from continuously reading clipboard data while they are in the background; full background history would require a user-enabled keyboard or accessibility-service design and is intentionally out of scope.
-
-## Privacy
-
-Notes, device tokens, clipboard history, pairing credentials, and local agent state stay on your devices. Pairing QR credentials expire after ten minutes and are kept in the running agent’s memory; the short-lived local pairing descriptor stores only a loopback address and expiry. No account or hosted backend is required.
 
 ## Validation
 
 ```powershell
 pnpm --dir cli build
-cd app; flutter test
+cd app
+flutter test
+flutter build apk --release
 ```
 
 ## License
