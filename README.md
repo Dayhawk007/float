@@ -42,6 +42,8 @@ node cli/dist/index.js pair serve
 
 The CLI prints a one-time pairing URI, terminal QR code, and an eight-digit manual code. In Float, choose the link icon, scan the QR code, or enter the printed local-agent URL and manual code. Pairing credentials expire after ten minutes; after pairing, the phone holds a device token in Android secure storage and syncs only while the local agent is running and reachable. This is peer-to-peer local development: it creates no account and sends no data to a hosted service.
 
+If the pairing server is already running and its terminal is unavailable, use `node cli/dist/index.js pair show`. It contacts that existing local process over loopback and reprints the active QR and manual code without starting a second server or opening another port.
+
 If the computer or `float pair serve` restarts, simply run the same command again from the same Float data directory. The agent restores paired-device token hashes from `%USERPROFILE%\\.float\\paired-devices.json`, while the phone retains its token in Android secure storage. Float retries its foreground sync automatically, so a restarted agent on the same address resumes without scanning a new QR code. A changed PC LAN address still requires local discovery or an updated pairing address; that is a future mDNS feature.
 
 ### Pairing diagnostics

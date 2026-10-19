@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { homedir, networkInterfaces } from 'node:os';
 import { dirname, join } from 'node:path';
 import Bonjour from 'bonjour-service';
@@ -19,8 +19,14 @@ const snippetSchema = z.object({
 type PairedDevice = { id: string; name: string; tokenHash: string; pairedAt: string };
 type PairingDatabase = { version: 1; devices: PairedDevice[] };
 type AgentIdentity = { version: 1; agentId: string };
+type PairingSession = {
+  version: 1;
+  localUrl: string;
+  expiresAt: number;
+};
 
 function floatHome(): string { return process.env.FLOAT_HOME ?? join(homedir(), '.float'); }
+function pairingSessionPath(): string { return join(floatHome(), 'active-pairing.json'); }
 function hash(value: string): string { return createHash('sha256').update(value).digest('hex'); }
 function token(): string { return randomBytes(32).toString('base64url'); }
 function log(event: string, details: Record<string, unknown> = {}): void {
@@ -118,6 +124,51 @@ function bearer(request: IncomingMessage): string | undefined {
   return value?.startsWith('Bearer ') ? value.slice('Bearer '.length) : undefined;
 }
 
+function isLoopback(address: string | undefined): boolean {
+  return address === '127.0.0.1' || address === '::1' || address === '::ffff:127.0.0.1';
+}
+
+async function savePairingSession(session: PairingSession): Promise<void> {
+  const path = pairingSessionPath();
+  await mkdir(dirname(path), { recursive: true });
+  const temporary = `${path}.tmp`;
+  await writeFile(temporary, `${JSON.stringify(session)}\n`, { encoding: 'utf8', mode: 0o600 });
+  await rename(temporary, path);
+}
+
+export async function showActivePairingCode(): Promise<void> {
+  let session: PairingSession;
+  try {
+    session = JSON.parse(await readFile(pairingSessionPath(), 'utf8')) as PairingSession;
+  } catch {
+    throw new Error('No active pairing session was found. Run “float pair serve” first.');
+  }
+  if (session.version !== 1 || !session.localUrl || Date.now() > session.expiresAt) {
+    throw new Error('The active pairing session has expired. Run “float pair serve” again.');
+  }
+  let response: Response;
+  try {
+    response = await fetch(`${session.localUrl}/v1/pairing-display`, { signal: AbortSignal.timeout(3_000) });
+  } catch {
+    throw new Error('The saved pairing server is not running. Run “float pair serve” again.');
+  }
+  if (!response.ok) {
+    throw new Error('The active pairing session is unavailable or expired. Run “float pair serve” again.');
+  }
+  const display = await response.json() as {
+    pairingUri: string;
+    agentUrl: string;
+    manualCode: string;
+    expiresAt: number;
+  };
+  if (Date.now() > display.expiresAt) {
+    throw new Error('The active pairing session has expired. Run “float pair serve” again.');
+  }
+  console.log('Scan this QR code in Float within 10 minutes. The existing pairing server remains running.');
+  qrcode.generate(display.pairingUri, { small: true });
+  console.log(`Manual pairing: ${display.agentUrl}  •  code ${display.manualCode}`);
+}
+
 export async function startPairingAgent(options: { host?: string; port?: number; advertiseUrl?: string; durationSeconds?: number; pairing?: boolean } = {}): Promise<void> {
   const host = options.host ?? '0.0.0.0';
   const port = options.port ?? 8787;
@@ -128,6 +179,7 @@ export async function startPairingAgent(options: { host?: string; port?: number;
   const oneTimeToken = pairingEnabled ? token() : '';
   const manualCode = pairingEnabled ? String(randomInt(10_000_000, 100_000_000)) : '';
   const expiresAt = Date.now() + 10 * 60 * 1000;
+  const localUrl = `http://127.0.0.1:${port}`;
   let manualCodeAttempts = 0;
   const registry = new DeviceRegistry();
   const identity = await new AgentIdentityStore().getOrCreate();
@@ -141,6 +193,15 @@ export async function startPairingAgent(options: { host?: string; port?: number;
       if (request.method === 'GET' && pathname === '/v1/health') {
         log('health.succeeded', { requestId });
         return json(response, 200, { status: 'ok', protocol: 1, agentId: identity.agentId });
+      }
+      if (request.method === 'GET' && pathname === '/v1/pairing-display') {
+        if (!pairingEnabled || !isLoopback(request.socket.remoteAddress)) {
+          return json(response, 403, { error: 'Pairing display is available only from this computer.' });
+        }
+        if (Date.now() > expiresAt) {
+          return json(response, 410, { error: 'The pairing session has expired.' });
+        }
+        return json(response, 200, { pairingUri, agentUrl, manualCode, expiresAt });
       }
       if (request.method === 'POST' && pathname === '/v1/pair') {
         if (!pairingEnabled) {
@@ -210,9 +271,13 @@ export async function startPairingAgent(options: { host?: string; port?: number;
   server.once('close', () => {
     service.stop();
     bonjour.destroy();
+    if (pairingEnabled) void unlink(pairingSessionPath()).catch(() => undefined);
     log('discovery.stopped', { agentId: identity.agentId });
   });
   const pairingUri = `float://pair?url=${encodeURIComponent(agentUrl)}&token=${encodeURIComponent(oneTimeToken)}&v=1`;
+  if (pairingEnabled) {
+    await savePairingSession({ version: 1, localUrl, expiresAt });
+  }
   console.log(`Float paired-device agent listening at ${agentUrl}`);
   log('agent.started', { agentUrl, host, port, dataPath: process.env.FLOAT_HOME ?? join(homedir(), '.float'), agentId: identity.agentId, pairingEnabled });
   log('pairing.registry.restored', { pairedDeviceCount: restoredDeviceCount });
