@@ -31,6 +31,7 @@ For every client-side change that affects UI or interaction, follow `DESIGN.md` 
 - Pairing and sync emit structured, privacy-safe diagnostics to Android `FloatPair` logs and the local agent terminal. They record stage, origin, status, count, elapsed time, and error type, never tokens or note contents.
 - Notes carry a portable `group` field (default: `General`). The Android editor has a searchable group picker that accepts new names plus suggested groups (General, Cold messages, Job profile information, Preferences). The main list and overlay navigate groups with chips; overlay search spans title, body, and group; CLI/MCP/sync preserve the same field.
 - The overlay launcher uses a picture-in-picture control in the app and a high-contrast, borderless stacked-notes handle. Manual paired-device sync closes its status dialog, shows an in-progress indicator, then replaces it with the sync result.
+- Pinning is explicit in the editor through a “Pin to floating overlay” toggle and on every note card through a direct pin control; both update the same portable `pinned` field.
 
 ### Explicitly not implemented
 

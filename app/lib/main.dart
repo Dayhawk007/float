@@ -765,6 +765,7 @@ class _SnippetEditorDialogState extends State<_SnippetEditorDialog> {
   late final TextEditingController _titleController;
   late final TextEditingController _bodyController;
   late final TextEditingController _groupController;
+  late bool _pinned;
 
   @override
   void initState() {
@@ -774,6 +775,7 @@ class _SnippetEditorDialogState extends State<_SnippetEditorDialog> {
     _groupController = TextEditingController(
       text: widget.existing?.group ?? defaultSnippetGroup,
     );
+    _pinned = widget.existing?.pinned ?? false;
   }
 
   @override
@@ -793,6 +795,7 @@ class _SnippetEditorDialogState extends State<_SnippetEditorDialog> {
             title: title,
             body: _bodyController.text,
             group: snippetGroup(_groupController.text),
+            pinned: _pinned,
           ) ??
           Snippet(
             id: DateTime.now().microsecondsSinceEpoch.toString(),
@@ -800,6 +803,7 @@ class _SnippetEditorDialogState extends State<_SnippetEditorDialog> {
             body: _bodyController.text,
             updatedAt: DateTime.now(),
             group: snippetGroup(_groupController.text),
+            pinned: _pinned,
           ),
     );
   }
@@ -846,6 +850,14 @@ class _SnippetEditorDialogState extends State<_SnippetEditorDialog> {
               dropdownMenuEntries: widget.availableGroups
                   .map((group) => DropdownMenuEntry(value: group, label: group))
                   .toList(),
+            ),
+            const SizedBox(height: 8),
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Pin to floating overlay'),
+              subtitle: const Text('Keep this note ready to copy'),
+              value: _pinned,
+              onChanged: (value) => setState(() => _pinned = value),
             ),
           ],
         ),
@@ -934,6 +946,19 @@ class _SnippetCard extends StatelessWidget {
                       ),
                     ),
                   ],
+                ),
+              ),
+              IconButton(
+                tooltip: snippet.pinned
+                    ? 'Unpin from floating overlay'
+                    : 'Pin to floating overlay',
+                onPressed: onPin,
+                color: snippet.pinned ? Colors.white : FloatTheme.ink,
+                icon: Icon(
+                  snippet.pinned
+                      ? Icons.push_pin_rounded
+                      : Icons.push_pin_outlined,
+                  size: 19,
                 ),
               ),
               PopupMenuButton<String>(

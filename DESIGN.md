@@ -27,6 +27,7 @@ Float should feel calm, immediate, and lightweight: a quiet utility that is read
 - Treat note groups as practical navigation, not visual decoration: let people choose an existing group or type a new one in the editor, show them as compact text chips in both the main app and overlay, and retain quiet section labels in the overlay list. Search must span title, content, and group.
 - For long utility lists, retain a visible scrollbar and use a compact “show more” control instead of rendering an unbounded feed.
 - Pinned content may use an inverted near-black surface to signal its elevated usefulness; ordinary content remains light.
+- Make pinning visible at both decision points: a direct pin control on each note card and a clearly labeled toggle in the note editor that explains its floating-overlay effect.
 - Empty states should be brief, practical, and local-first in tone. They should guide the next action without adding decoration.
 
 ## Motion and interaction
