@@ -4,8 +4,6 @@
 
 Float is a lightweight, local-first shelf for the words you reuse. It keeps useful notes, templates, links, and recent pastes one tap away on Android, then gives your desktop CLI and AI tools the same private library through a local MCP server.
 
-![Float main screen](docs/screenshots/float-main.png)
-
 ## Why Float exists
 
 Float started with a very ordinary frustration: filling out forms meant hunting through clipboard history, scattered notes, old chats, and open tabs for the one paragraph or URL I needed to paste again. Float turns that scavenger hunt into a small, searchable shelf that stays close while you work.
@@ -15,9 +13,10 @@ No account. No hosted backend. No mystery sync. Pair your phone with your comput
 ## See it in action
 
 <p align="center">
-  <img src="docs/screenshots/float-overlay.png" alt="Float overlay with searchable pinned notes" width="230" />
-  <img src="docs/screenshots/float-groups.png" alt="Float notes organized into groups" width="230" />
-  <img src="docs/screenshots/float-pairing.png" alt="Float local device pairing dialog" width="230" />
+  <img src="docs/screenshots/float-main.png" alt="Float main screen and pairing dialog" width="190" />
+  <img src="docs/screenshots/float-overlay.png" alt="Float overlay with searchable pinned notes" width="190" />
+  <img src="docs/screenshots/float-groups.png" alt="Float notes organized into groups" width="190" />
+  <img src="docs/screenshots/float-pairing.png" alt="Float local device pairing dialog" width="190" />
 </p>
 
 ## What you get
