@@ -107,7 +107,7 @@ class SnippetHome extends StatefulWidget {
   State<SnippetHome> createState() => _SnippetHomeState();
 }
 
-class _SnippetHomeState extends State<SnippetHome> {
+class _SnippetHomeState extends State<SnippetHome> with WidgetsBindingObserver {
   final _searchController = TextEditingController();
   final _notesScrollController = ScrollController();
   List<Snippet> _snippets = [];
@@ -121,20 +121,42 @@ class _SnippetHomeState extends State<SnippetHome> {
   Timer? _syncTimer;
   int _visibleNoteCount = notesPageSize;
   String? _selectedGroup;
+  bool _overlayPermissionGateVisible = false;
+  bool _overlayActivationInProgress = false;
+  BuildContext? _overlayPermissionDialogContext;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _clipboardHistory?.dispose();
     _syncTimer?.cancel();
     _searchController.dispose();
     _notesScrollController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) unawaited(_resumeOverlaySetup());
+  }
+
+  Future<void> _resumeOverlaySetup() async {
+    try {
+      final granted = await FlutterOverlayWindow.isPermissionGranted();
+      if (granted && (_overlayPermissionDialogContext?.mounted ?? false)) {
+        Navigator.of(_overlayPermissionDialogContext!).pop();
+      }
+    } on MissingPluginException {
+      return;
+    }
+    await _ensureOverlayEnabled();
   }
 
   Future<void> _load() async {
@@ -153,6 +175,7 @@ class _SnippetHomeState extends State<SnippetHome> {
       unawaited(_captureCurrentClipboard());
     }
     if (mounted) setState(() => _loading = false);
+    unawaited(_ensureOverlayEnabled());
     unawaited(_restorePairedDevice());
   }
 
@@ -479,38 +502,64 @@ class _SnippetHomeState extends State<SnippetHome> {
     );
   }
 
-  Future<void> _showOverlay() async {
-    final permitted = await FlutterOverlayWindow.isPermissionGranted();
-    final granted =
-        permitted || await FlutterOverlayWindow.requestPermission() == true;
-    if (!granted) {
-      if (!mounted) return;
+  Future<void> _ensureOverlayEnabled() async {
+    if (_overlayActivationInProgress) return;
+    _overlayActivationInProgress = true;
+    try {
+      if (!await FlutterOverlayWindow.isPermissionGranted()) {
+        await _showOverlayPermissionGate();
+        if (!await FlutterOverlayWindow.isPermissionGranted()) return;
+      }
+      if (_overlayPermissionDialogContext?.mounted ?? false) {
+        Navigator.of(_overlayPermissionDialogContext!).pop();
+      }
+      if (await FlutterOverlayWindow.isActive()) {
+        await FlutterOverlayWindow.shareData('snippets-changed');
+        return;
+      }
+      await _startOverlay();
+    } on MissingPluginException {
+      // Overlay APIs are Android-only and unavailable to widget tests.
+    } finally {
+      _overlayActivationInProgress = false;
+    }
+  }
+
+  Future<void> _showOverlayPermissionGate() async {
+    if (!mounted || _overlayPermissionGateVisible) return;
+    _overlayPermissionGateVisible = true;
+    try {
       await showDialog<void>(
         context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Allow Float over other apps'),
-          content: const Text(
-            'Float needs Android’s “Display over other apps” permission to keep the note handle visible.\n\nOpen Settings → Apps → Special app access → Display over other apps → Float, then turn on “Allow display over other apps”.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Not now'),
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          _overlayPermissionDialogContext = dialogContext;
+          return PopScope(
+            canPop: false,
+            child: AlertDialog(
+              title: const Text('Allow Float over other apps'),
+              content: const Text(
+                'Float’s floating handle is always on so pinned notes stay ready to copy. Allow “Display over other apps” for Float to continue.\n\nIn Android Settings, turn on “Allow display over other apps”.',
+              ),
+              actions: [
+                FilledButton(
+                  onPressed: () => const MethodChannel(
+                    'float/system',
+                  ).invokeMethod<void>('openOverlaySettings'),
+                  child: const Text('Open Settings'),
+                ),
+              ],
             ),
-            FilledButton(
-              onPressed: () async {
-                Navigator.pop(dialogContext);
-                await const MethodChannel(
-                  'float/system',
-                ).invokeMethod<void>('openOverlaySettings');
-              },
-              child: const Text('Open Settings'),
-            ),
-          ],
-        ),
+          );
+        },
       );
-      return;
+    } finally {
+      _overlayPermissionGateVisible = false;
+      _overlayPermissionDialogContext = null;
     }
+  }
+
+  Future<void> _startOverlay() async {
     if (!mounted) return;
     final initialSize = (72 * MediaQuery.devicePixelRatioOf(context)).round();
     await FlutterOverlayWindow.showOverlay(
@@ -611,23 +660,6 @@ class _SnippetHomeState extends State<SnippetHome> {
                       ? Icons.link_rounded
                       : Icons.sync_rounded,
                   size: 19,
-                ),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                border: Border.all(color: FloatTheme.line),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: IconButton(
-                tooltip: 'Show floating notes',
-                onPressed: _showOverlay,
-                icon: const Icon(
-                  Icons.picture_in_picture_alt_outlined,
-                  size: 20,
                 ),
               ),
             ),

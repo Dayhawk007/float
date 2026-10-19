@@ -38,6 +38,7 @@ Float should feel calm, immediate, and lightweight: a quiet utility that is read
 - Preserve native-feeling Android interaction feedback, but do not add ripples, shadows, or haptics solely for ornament.
 - The floating handle must stay easy to see and touch. Dragging snaps horizontally to an edge; tapping expands it; the expanded panel must remain easy to dismiss.
 - The compact handle remains borderless and shadowless. On dark content, use a substantial white internal glyph/cue rather than an outer stroke to retain visibility.
+- Treat the floating handle as Float’s required primary surface: request Android’s draw-over-apps permission during setup, start the handle automatically after it is granted, and do not expose a separate manual enable/disable control in the main app.
 
 ## Accessibility and readability
 
