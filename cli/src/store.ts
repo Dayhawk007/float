@@ -12,6 +12,7 @@ const snippetSchema = z.object({
   body: z.string(),
   tags: z.array(z.string()),
   list: z.string().nullable(),
+  group: z.string().default('General'),
   pinned: z.boolean(),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -47,11 +48,14 @@ export class FloatStore {
     await rename(temporaryPath, this.filePath);
   }
 
-  async list(query?: string): Promise<Snippet[]> {
+  async list(query?: string, group?: string): Promise<Snippet[]> {
     const { snippets } = await this.read();
     const normalizedQuery = query?.trim().toLocaleLowerCase();
     return snippets
-      .filter((snippet) => !normalizedQuery || [snippet.title, snippet.body, snippet.list ?? '', ...snippet.tags].join('\n').toLocaleLowerCase().includes(normalizedQuery))
+      .filter((snippet) =>
+        (!group || snippet.group.toLocaleLowerCase() === group.trim().toLocaleLowerCase()) &&
+        (!normalizedQuery || [snippet.title, snippet.body, snippet.group, snippet.list ?? '', ...snippet.tags].join('\n').toLocaleLowerCase().includes(normalizedQuery)),
+      )
       .sort((left, right) => Number(right.pinned) - Number(left.pinned) || right.updatedAt.localeCompare(left.updatedAt));
   }
 
@@ -61,12 +65,12 @@ export class FloatStore {
     return snippet;
   }
 
-  async create(input: Pick<Snippet, 'title' | 'body'> & Partial<Pick<Snippet, 'tags' | 'list' | 'pinned'>>): Promise<Snippet> {
+  async create(input: Pick<Snippet, 'title' | 'body'> & Partial<Pick<Snippet, 'tags' | 'list' | 'group' | 'pinned'>>): Promise<Snippet> {
     const timestamp = new Date().toISOString();
     const snippet = snippetSchema.parse({
       id: randomUUID(), title: input.title.trim(), body: input.body,
       tags: input.tags?.map((tag) => tag.trim()).filter(Boolean) ?? [],
-      list: input.list?.trim() || null, pinned: input.pinned ?? false,
+      list: input.list?.trim() || null, group: input.group?.trim() || 'General', pinned: input.pinned ?? false,
       createdAt: timestamp, updatedAt: timestamp, lastUsedAt: null,
     });
     const database = await this.read();
@@ -75,7 +79,7 @@ export class FloatStore {
     return snippet;
   }
 
-  async update(id: string, input: Partial<Pick<Snippet, 'title' | 'body' | 'tags' | 'list' | 'pinned'>>): Promise<Snippet> {
+  async update(id: string, input: Partial<Pick<Snippet, 'title' | 'body' | 'tags' | 'list' | 'group' | 'pinned'>>): Promise<Snippet> {
     const database = await this.read();
     const index = database.snippets.findIndex((item) => item.id === id);
     if (index === -1) throw new Error(`No Float snippet found with id ${id}.`);

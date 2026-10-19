@@ -29,6 +29,7 @@ For every client-side change that affects UI or interaction, follow `DESIGN.md` 
 - Paired agents have a stable local identity and advertise `_float._tcp.local` on the trusted LAN. If the desktop receives a new LAN IP, Android searches for that identity after a sync failure, verifies it through the health endpoint, persists the recovered URL, and retries sync. Tokens and note contents are never advertised.
 - Account-free paired-device sync foundation: `float pair serve` creates a ten-minute QR credential plus an eight-digit manual code, issues a per-device token, and serves the desktop's local snippet store only while explicitly running on the local network. The Android app can scan the QR, enter the printed agent URL and code, stores its token in Android secure storage, and performs foreground last-write-wins sync.
 - Pairing and sync emit structured, privacy-safe diagnostics to Android `FloatPair` logs and the local agent terminal. They record stage, origin, status, count, elapsed time, and error type, never tokens or note contents.
+- Notes carry a portable `group` field (default: `General`). The Android editor supports groups such as Jobs, Cold posting, Profile, and Preferences; the main list navigates them with chips, the overlay searches and sections pinned notes by group, and CLI/MCP/sync preserve the same field.
 
 ### Explicitly not implemented
 

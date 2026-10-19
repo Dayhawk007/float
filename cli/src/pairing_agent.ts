@@ -12,6 +12,7 @@ const pairingSchema = z.object({ deviceId: z.string().min(1).max(128), deviceNam
 const snippetSchema = z.object({
   id: z.string().min(1), title: z.string().min(1), body: z.string(),
   tags: z.array(z.string()).default([]), list: z.string().nullable().default(null),
+  group: z.string().default('General'),
   pinned: z.boolean().default(false), createdAt: z.string(), updatedAt: z.string(), lastUsedAt: z.string().nullable().default(null),
 });
 

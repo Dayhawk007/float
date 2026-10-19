@@ -14,8 +14,8 @@ export async function startMcpServer(): Promise<void> {
   server.registerTool('search_snippets', {
     title: 'Search Float snippets',
     description: 'Search the locally stored Float notes and reusable clipboard snippets.',
-    inputSchema: { query: z.string().default('') },
-  }, async ({ query }) => result(await store.list(query)));
+    inputSchema: { query: z.string().default(''), group: z.string().optional() },
+  }, async ({ query, group }) => result(await store.list(query, group)));
 
   server.registerTool('get_snippet', {
     title: 'Get a Float snippet',
@@ -26,13 +26,13 @@ export async function startMcpServer(): Promise<void> {
   server.registerTool('create_snippet', {
     title: 'Create a Float snippet',
     description: 'Save a new local Float snippet. This writes only to the current user’s local Float store.',
-    inputSchema: { title: z.string().min(1), body: z.string(), tags: z.array(z.string()).optional(), list: z.string().optional(), pinned: z.boolean().optional() },
+    inputSchema: { title: z.string().min(1), body: z.string(), tags: z.array(z.string()).optional(), list: z.string().optional(), group: z.string().optional(), pinned: z.boolean().optional() },
   }, async (input) => result(await store.create(input)));
 
   server.registerTool('update_snippet', {
     title: 'Update a Float snippet',
-    description: 'Update title, body, tags, list, or pinned status of a local Float snippet.',
-    inputSchema: { id: z.string().min(1), title: z.string().min(1).optional(), body: z.string().optional(), tags: z.array(z.string()).optional(), list: z.string().nullable().optional(), pinned: z.boolean().optional() },
+    description: 'Update title, body, group, tags, list, or pinned status of a local Float snippet.',
+    inputSchema: { id: z.string().min(1), title: z.string().min(1).optional(), body: z.string().optional(), tags: z.array(z.string()).optional(), list: z.string().nullable().optional(), group: z.string().optional(), pinned: z.boolean().optional() },
   }, async ({ id, ...fields }) => result(await store.update(id, fields)));
 
   await server.connect(new StdioServerTransport());

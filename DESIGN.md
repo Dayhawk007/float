@@ -24,6 +24,7 @@ Float should feel calm, immediate, and lightweight: a quiet utility that is read
 - Keep the main app's content horizontally aligned on a simple 20 px rhythm.
 - Use one strong visual priority per view: an action, a current note, or a small set of pinned notes.
 - Keep secondary, ephemeral collections (such as clipboard history) out of the main note list; reveal them from a compact adjacent icon in a focused modal.
+- Treat note groups as practical navigation, not visual decoration: show them as compact text chips in the main app and quiet section labels in the overlay. Search must span title, content, and group.
 - For long utility lists, retain a visible scrollbar and use a compact “show more” control instead of rendering an unbounded feed.
 - Pinned content may use an inverted near-black surface to signal its elevated usefulness; ordinary content remains light.
 - Empty states should be brief, practical, and local-first in tone. They should guide the next action without adding decoration.

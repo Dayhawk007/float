@@ -23,6 +23,7 @@ class _FloatOverlayState extends State<FloatOverlay> {
   final _scrollController = ScrollController();
   bool _expanded = false;
   int _visibleSnippetCount = overlayPageSize;
+  String _query = '';
 
   @override
   void initState() {
@@ -62,7 +63,7 @@ class _FloatOverlayState extends State<FloatOverlay> {
   }
 
   Future<void> _expand() async {
-    await FlutterOverlayWindow.resizeOverlay(340, 320, false);
+    await FlutterOverlayWindow.resizeOverlay(340, 400, false);
     if (mounted) setState(() => _expanded = true);
   }
 
@@ -75,35 +76,49 @@ class _FloatOverlayState extends State<FloatOverlay> {
     if (mounted) setState(() => _expanded = false);
   }
 
+  void _setQuery(String value) {
+    setState(() {
+      _query = value.trim();
+      _visibleSnippetCount = overlayPageSize;
+    });
+  }
+
   Future<void> _copy(Snippet snippet) async {
     await FlutterOverlayWindow.copyToClipboard(snippet.body);
     await _collapse();
   }
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
-    debugShowCheckedModeBanner: false,
-    theme: FloatTheme.data,
-    home: Material(
-      color: Colors.transparent,
-      child: AnimatedSwitcher(
-        duration: FloatTheme.shortMotion,
-        switchInCurve: FloatTheme.gentleCurve,
-        child: _expanded
-            ? _ExpandedOverlay(
-                key: const ValueKey('expanded'),
-                snippets: _snippets.take(_visibleSnippetCount).toList(),
-                totalSnippetCount: _snippets.length,
-                hasMore: _visibleSnippetCount < _snippets.length,
-                scrollController: _scrollController,
-                onCollapse: _collapse,
-                onCopy: _copy,
-                onShowMore: _showMore,
-              )
-            : const _OverlayHandle(key: ValueKey('handle')),
+  Widget build(BuildContext context) {
+    final visible = _snippets
+        .where((snippet) => snippetMatchesQuery(snippet, _query))
+        .toList();
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: FloatTheme.data,
+      home: Material(
+        color: Colors.transparent,
+        child: AnimatedSwitcher(
+          duration: FloatTheme.shortMotion,
+          switchInCurve: FloatTheme.gentleCurve,
+          child: _expanded
+              ? _ExpandedOverlay(
+                  key: const ValueKey('expanded'),
+                  snippets: visible.take(_visibleSnippetCount).toList(),
+                  totalSnippetCount: visible.length,
+                  hasMore: _visibleSnippetCount < visible.length,
+                  scrollController: _scrollController,
+                  onCollapse: _collapse,
+                  onCopy: _copy,
+                  onShowMore: _showMore,
+                  query: _query,
+                  onQueryChanged: _setQuery,
+                )
+              : const _OverlayHandle(key: ValueKey('handle')),
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _OverlayHandle extends StatelessWidget {
@@ -134,6 +149,8 @@ class _ExpandedOverlay extends StatelessWidget {
     required this.onCollapse,
     required this.onCopy,
     required this.onShowMore,
+    required this.query,
+    required this.onQueryChanged,
   });
   final List<Snippet> snippets;
   final int totalSnippetCount;
@@ -142,6 +159,8 @@ class _ExpandedOverlay extends StatelessWidget {
   final VoidCallback onCollapse;
   final Future<void> Function(Snippet snippet) onCopy;
   final VoidCallback onShowMore;
+  final String query;
+  final ValueChanged<String> onQueryChanged;
 
   @override
   Widget build(BuildContext context) => SafeArea(
@@ -183,6 +202,19 @@ class _ExpandedOverlay extends StatelessWidget {
               ],
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
+            child: TextField(
+              onChanged: onQueryChanged,
+              textInputAction: TextInputAction.search,
+              style: const TextStyle(fontSize: 13),
+              decoration: InputDecoration(
+                hintText: 'Search pinned notes',
+                isDense: true,
+                prefixIcon: const Icon(Icons.search_rounded, size: 18),
+              ),
+            ),
+          ),
           Expanded(
             child: snippets.isEmpty
                 ? const Center(
@@ -202,40 +234,44 @@ class _ExpandedOverlay extends StatelessWidget {
                       padding: const EdgeInsets.only(right: 8),
                       children: [
                         if (snippets.isNotEmpty) ...[
-                          const _OverlaySectionLabel('PINNED NOTES'),
-                          for (final snippet in snippets)
-                            ListTile(
-                              dense: true,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 18,
-                                vertical: 3,
-                              ),
-                              title: Text(
-                                snippet.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
+                          for (final entry in _groupedSnippets(
+                            snippets,
+                          ).entries) ...[
+                            _OverlaySectionLabel(entry.key.toUpperCase()),
+                            for (final snippet in entry.value)
+                              ListTile(
+                                dense: true,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 18,
+                                  vertical: 3,
                                 ),
-                              ),
-                              leading: Icon(
-                                snippetKindIcon(snippetKind(snippet)),
-                                size: 18,
-                              ),
-                              subtitle: Text(
-                                snippet.body,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: FloatTheme.mutedInk,
+                                title: Text(
+                                  snippet.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
+                                leading: Icon(
+                                  snippetKindIcon(snippetKind(snippet)),
+                                  size: 18,
+                                ),
+                                subtitle: Text(
+                                  snippet.body,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: FloatTheme.mutedInk,
+                                  ),
+                                ),
+                                trailing: const Icon(
+                                  Icons.content_copy_outlined,
+                                  size: 17,
+                                ),
+                                onTap: () => onCopy(snippet),
                               ),
-                              trailing: const Icon(
-                                Icons.content_copy_outlined,
-                                size: 17,
-                              ),
-                              onTap: () => onCopy(snippet),
-                            ),
+                          ],
                           if (hasMore)
                             Padding(
                               padding: const EdgeInsets.fromLTRB(18, 8, 18, 14),
@@ -255,6 +291,14 @@ class _ExpandedOverlay extends StatelessWidget {
       ),
     ),
   );
+}
+
+Map<String, List<Snippet>> _groupedSnippets(List<Snippet> snippets) {
+  final groups = <String, List<Snippet>>{};
+  for (final snippet in snippets) {
+    groups.putIfAbsent(snippet.group, () => []).add(snippet);
+  }
+  return groups;
 }
 
 class _OverlaySectionLabel extends StatelessWidget {

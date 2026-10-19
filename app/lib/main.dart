@@ -16,6 +16,14 @@ const snippetStorageKey = 'float.snippets.v1';
 const clipboardHistoryEnabledKey = 'float.clipboard-history-enabled.v1';
 const syncPollInterval = Duration(seconds: 5);
 const notesPageSize = 20;
+const defaultSnippetGroup = 'General';
+const suggestedSnippetGroups = [
+  defaultSnippetGroup,
+  'Jobs',
+  'Cold posting',
+  'Profile',
+  'Preferences',
+];
 
 void main() => runApp(const FloatApp());
 
@@ -29,18 +37,26 @@ class Snippet {
     required this.body,
     required this.updatedAt,
     this.pinned = false,
+    this.group = defaultSnippetGroup,
   });
   final String id;
   final String title;
   final String body;
   final DateTime updatedAt;
   final bool pinned;
+  final String group;
 
-  Snippet copyWith({String? title, String? body, bool? pinned}) => Snippet(
+  Snippet copyWith({
+    String? title,
+    String? body,
+    bool? pinned,
+    String? group,
+  }) => Snippet(
     id: id,
     title: title ?? this.title,
     body: body ?? this.body,
     pinned: pinned ?? this.pinned,
+    group: group ?? this.group,
     updatedAt: DateTime.now(),
   );
   Map<String, Object> toJson() => {
@@ -50,6 +66,7 @@ class Snippet {
     'updatedAt': updatedAt.toIso8601String(),
     'createdAt': updatedAt.toIso8601String(),
     'pinned': pinned,
+    'group': group,
   };
   factory Snippet.fromJson(Map<String, dynamic> json) => Snippet(
     id: json['id'] as String,
@@ -57,8 +74,22 @@ class Snippet {
     body: json['body'] as String,
     updatedAt: DateTime.parse(json['updatedAt'] as String),
     pinned: json['pinned'] as bool? ?? false,
+    group: snippetGroup(json['group'] as String?),
   );
 }
+
+String snippetGroup(String? value) {
+  final normalized = value?.trim();
+  return normalized == null || normalized.isEmpty
+      ? defaultSnippetGroup
+      : normalized;
+}
+
+bool snippetMatchesQuery(Snippet snippet, String query) =>
+    query.isEmpty ||
+    '${snippet.title}\n${snippet.body}\n${snippet.group}'
+        .toLowerCase()
+        .contains(query.toLowerCase());
 
 enum SnippetKind { linkedin, link, template, code, text }
 
@@ -131,6 +162,7 @@ class _SnippetHomeState extends State<SnippetHome> {
   bool _syncing = false;
   Timer? _syncTimer;
   int _visibleNoteCount = notesPageSize;
+  String? _selectedGroup;
 
   @override
   void initState() {
@@ -521,15 +553,16 @@ class _SnippetHomeState extends State<SnippetHome> {
 
   @override
   Widget build(BuildContext context) {
-    final query = _searchController.text.trim().toLowerCase();
+    final query = _searchController.text.trim();
+    final groups = <String>{
+      for (final snippet in _snippets) snippet.group,
+    }.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     final visible =
         _snippets
             .where(
               (snippet) =>
-                  query.isEmpty ||
-                  '${snippet.title}\n${snippet.body}'.toLowerCase().contains(
-                    query,
-                  ),
+                  (_selectedGroup == null || snippet.group == _selectedGroup) &&
+                  snippetMatchesQuery(snippet, query),
             )
             .toList()
           ..sort(
@@ -631,6 +664,37 @@ class _SnippetHomeState extends State<SnippetHome> {
                         setState(() => _visibleNoteCount = notesPageSize),
                   ),
                 ),
+                if (groups.isNotEmpty)
+                  SizedBox(
+                    height: 42,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                      children: [
+                        ChoiceChip(
+                          label: const Text('ALL'),
+                          selected: _selectedGroup == null,
+                          onSelected: (_) => setState(() {
+                            _selectedGroup = null;
+                            _visibleNoteCount = notesPageSize;
+                          }),
+                        ),
+                        for (final group in groups) ...[
+                          const SizedBox(width: 8),
+                          ChoiceChip(
+                            label: Text(group.toUpperCase()),
+                            selected: _selectedGroup == group,
+                            onSelected: (_) => setState(() {
+                              _selectedGroup = _selectedGroup == group
+                                  ? null
+                                  : group;
+                              _visibleNoteCount = notesPageSize;
+                            }),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
                   child: _ClipboardSetting(
@@ -705,18 +769,23 @@ class _SnippetEditorDialog extends StatefulWidget {
 class _SnippetEditorDialogState extends State<_SnippetEditorDialog> {
   late final TextEditingController _titleController;
   late final TextEditingController _bodyController;
+  late final TextEditingController _groupController;
 
   @override
   void initState() {
     super.initState();
     _titleController = TextEditingController(text: widget.existing?.title);
     _bodyController = TextEditingController(text: widget.existing?.body);
+    _groupController = TextEditingController(
+      text: widget.existing?.group ?? defaultSnippetGroup,
+    );
   }
 
   @override
   void dispose() {
     _titleController.dispose();
     _bodyController.dispose();
+    _groupController.dispose();
     super.dispose();
   }
 
@@ -725,12 +794,17 @@ class _SnippetEditorDialogState extends State<_SnippetEditorDialog> {
     if (title.isEmpty) return;
     Navigator.pop(
       context,
-      widget.existing?.copyWith(title: title, body: _bodyController.text) ??
+      widget.existing?.copyWith(
+            title: title,
+            body: _bodyController.text,
+            group: snippetGroup(_groupController.text),
+          ) ??
           Snippet(
             id: DateTime.now().microsecondsSinceEpoch.toString(),
             title: title,
             body: _bodyController.text,
             updatedAt: DateTime.now(),
+            group: snippetGroup(_groupController.text),
           ),
     );
   }
@@ -762,6 +836,15 @@ class _SnippetEditorDialogState extends State<_SnippetEditorDialog> {
             decoration: const InputDecoration(
               labelText: 'Content',
               alignLabelWithHint: true,
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _groupController,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(
+              labelText: 'Group',
+              hintText: suggestedSnippetGroups.skip(1).join(', '),
             ),
           ),
         ],
@@ -848,6 +931,18 @@ class _SnippetCard extends StatelessWidget {
                     ],
                     const SizedBox(height: 8),
                     _SnippetKindBadge(kind: snippetKind(snippet)),
+                    const SizedBox(height: 6),
+                    Text(
+                      snippet.group.toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.9,
+                        color: snippet.pinned
+                            ? const Color(0xFFD7D7D2)
+                            : FloatTheme.mutedInk,
+                      ),
+                    ),
                   ],
                 ),
               ),
