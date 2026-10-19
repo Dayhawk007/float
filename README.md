@@ -62,7 +62,9 @@ the Android app, pairing, and startup sync without cloud setup.
    flutter run
    ```
 
-   For a real device, pass `--dart-define=FLOAT_AGENT_URL=http://YOUR_PC_WIFI_IP:8787`.
+   Those commands are for development. For a normal install, download the
+   [release APK](https://github.com/Dayhawk007/float/releases/latest) and open
+   it on your Android device.
 
 3. Pair once on the same trusted Wi-Fi:
 

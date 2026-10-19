@@ -64,11 +64,9 @@ flutter build apk --debug
 ```
 
 Install the resulting APK on the user's device or run `flutter run` only when
-the user asks. For a real device, pass the desktop URL without editing source:
-
-```text
-flutter run --dart-define=FLOAT_AGENT_URL=http://<computer-lan-ip>:8787
-```
+the user asks. For normal users, prefer the latest release APK from GitHub.
+The desktop URL is supplied during QR/manual pairing, so no build-time URL is
+needed.
 
 ## 5. Optional local pairing
 
