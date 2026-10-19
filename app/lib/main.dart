@@ -14,7 +14,7 @@ import 'paired_sync_service.dart';
 
 const snippetStorageKey = 'float.snippets.v1';
 const clipboardHistoryEnabledKey = 'float.clipboard-history-enabled.v1';
-const syncPollInterval = Duration(seconds: 5);
+const syncPollInterval = Duration(minutes: 1);
 const notesPageSize = 20;
 const defaultSnippetGroup = 'General';
 const suggestedSnippetGroups = [

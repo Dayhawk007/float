@@ -18,7 +18,7 @@ For every client-side change that affects UI or interaction, follow `DESIGN.md` 
 - Releasing the compact handle snaps it to the nearest vertical screen edge; its native touch listener emits an explicit tap event to expand the notes panel.
 - The Android app and floating panel use a monochrome, low-elevation visual language: warm-white surfaces, near-black controls, fine borders, compact labels, and restrained state transitions.
 - The overlay reloads its isolated local-preferences cache when notes change, so new pins appear without restarting; the handle has no elevation/shadow.
-- The paired phone polls the local agent every five seconds while paired and signals the active overlay after a pull, so desktop-created notes appear without restarting or manually rereading.
+- The paired phone polls the local agent once per minute while paired and signals the active overlay after a pull, so desktop-created notes appear without restarting or manually rereading.
 - Overlay permission failures explain Android's Display over other apps path and can open the app-specific system settings screen.
 - Notes receive lightweight inferred presentation context (LinkedIn, link, template, code, or note) without changing the portable snippet schema.
 - Opt-in clipboard shelf. Clipboard collection is disabled by default; when enabled, recent text observed while Float is open plus the current clipboard on launch are kept in a capped local shelf and are only promoted to permanent notes when the user explicitly saves them. Android does not permit a normal background app to observe every clipboard change.
