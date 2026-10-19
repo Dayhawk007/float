@@ -26,7 +26,7 @@ flutter run
 ```powershell
 pnpm install
 pnpm --dir cli build
-node cli/dist/index.js create --title "Availability" --body "I can start immediately." --tags jobs,forms --pin
+node cli/dist/index.js create --title "Availability" --body "I can start immediately." --group "Job profile information" --pin
 node cli/dist/index.js search availability --json
 ```
 

@@ -17,20 +17,18 @@ function print(value: unknown, json?: boolean): void {
 }
 
 function formatSnippet(snippet: Snippet): string {
-  return `${snippet.id}\n${snippet.pinned ? '★ ' : ''}${snippet.title}  ·  ${snippet.group}${snippet.tags.length ? `  #${snippet.tags.join(' #')}` : ''}\n${snippet.body}`;
+  return `${snippet.id}\n${snippet.pinned ? '★ ' : ''}${snippet.title}  ·  ${snippet.group}\n${snippet.body}`;
 }
-
-function splitTags(value?: string): string[] | undefined { return value?.split(',').map((tag) => tag.trim()).filter(Boolean); }
 
 program.name('float').description('Local-first notes and clipboard companion').version('0.1.0').showSuggestionAfterError();
 
 program.command('list').description('List saved snippets').option('-q, --query <query>').option('--group <group>', 'Only notes in this group').option('--json').action(async (options) => print(await store.list(options.query, options.group), options.json));
 program.command('search <query>').description('Search saved snippets').option('--group <group>', 'Only notes in this group').option('--json').action(async (query, options) => print(await store.list(query, options.group), options.json));
 program.command('get <id>').description('Read one snippet').option('--json').action(async (id, options) => print(await store.get(id), options.json));
-program.command('create').description('Create a snippet').requiredOption('-t, --title <title>').requiredOption('-b, --body <body>').option('--tags <tags>', 'Comma-separated tags').option('--list <list>').option('--group <group>', 'Note group', 'General').option('--pin').option('--json').action(async (options) => print(await store.create({ title: options.title, body: options.body, tags: splitTags(options.tags), list: options.list, group: options.group, pinned: options.pin }), options.json));
-program.command('update <id>').description('Update a snippet').option('-t, --title <title>').option('-b, --body <body>').option('--tags <tags>').option('--list <list>').option('--group <group>', 'Note group').option('--pin').option('--unpin').option('--json').action(async (id, options) => {
-  if (![options.title, options.body, options.tags, options.list, options.group, options.pin, options.unpin].some((value) => value !== undefined)) throw new Error('Provide at least one field to update.');
-  print(await store.update(id, { title: options.title, body: options.body, tags: splitTags(options.tags), list: options.list, group: options.group, pinned: options.pin ? true : options.unpin ? false : undefined }), options.json);
+program.command('create').description('Create a snippet').requiredOption('-t, --title <title>').requiredOption('-b, --body <body>').option('--list <list>').option('--group <group>', 'Note group', 'General').option('--pin').option('--json').action(async (options) => print(await store.create({ title: options.title, body: options.body, list: options.list, group: options.group, pinned: options.pin }), options.json));
+program.command('update <id>').description('Update a snippet').option('-t, --title <title>').option('-b, --body <body>').option('--list <list>').option('--group <group>', 'Note group').option('--pin').option('--unpin').option('--json').action(async (id, options) => {
+  if (![options.title, options.body, options.list, options.group, options.pin, options.unpin].some((value) => value !== undefined)) throw new Error('Provide at least one field to update.');
+  print(await store.update(id, { title: options.title, body: options.body, list: options.list, group: options.group, pinned: options.pin ? true : options.unpin ? false : undefined }), options.json);
 });
 program.command('copy <id>').description('Copy a snippet body to the system clipboard').option('--json').action(async (id, options) => { const snippet = await store.get(id); await clipboard.write(snippet.body); print(snippet, options.json); });
 program.command('delete <id>').description('Permanently delete a snippet').requiredOption('--yes', 'Confirm permanent deletion').action(async (id) => { await store.remove(id); console.log(`Deleted ${id}`); });

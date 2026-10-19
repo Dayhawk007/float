@@ -10,7 +10,6 @@ const snippetSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
   body: z.string(),
-  tags: z.array(z.string()),
   list: z.string().nullable(),
   group: z.string().default('General'),
   pinned: z.boolean(),
@@ -54,7 +53,7 @@ export class FloatStore {
     return snippets
       .filter((snippet) =>
         (!group || snippet.group.toLocaleLowerCase() === group.trim().toLocaleLowerCase()) &&
-        (!normalizedQuery || [snippet.title, snippet.body, snippet.group, snippet.list ?? '', ...snippet.tags].join('\n').toLocaleLowerCase().includes(normalizedQuery)),
+        (!normalizedQuery || [snippet.title, snippet.body, snippet.group, snippet.list ?? ''].join('\n').toLocaleLowerCase().includes(normalizedQuery)),
       )
       .sort((left, right) => Number(right.pinned) - Number(left.pinned) || right.updatedAt.localeCompare(left.updatedAt));
   }
@@ -65,11 +64,10 @@ export class FloatStore {
     return snippet;
   }
 
-  async create(input: Pick<Snippet, 'title' | 'body'> & Partial<Pick<Snippet, 'tags' | 'list' | 'group' | 'pinned'>>): Promise<Snippet> {
+  async create(input: Pick<Snippet, 'title' | 'body'> & Partial<Pick<Snippet, 'list' | 'group' | 'pinned'>>): Promise<Snippet> {
     const timestamp = new Date().toISOString();
     const snippet = snippetSchema.parse({
       id: randomUUID(), title: input.title.trim(), body: input.body,
-      tags: input.tags?.map((tag) => tag.trim()).filter(Boolean) ?? [],
       list: input.list?.trim() || null, group: input.group?.trim() || 'General', pinned: input.pinned ?? false,
       createdAt: timestamp, updatedAt: timestamp, lastUsedAt: null,
     });
@@ -79,7 +77,7 @@ export class FloatStore {
     return snippet;
   }
 
-  async update(id: string, input: Partial<Pick<Snippet, 'title' | 'body' | 'tags' | 'list' | 'group' | 'pinned'>>): Promise<Snippet> {
+  async update(id: string, input: Partial<Pick<Snippet, 'title' | 'body' | 'list' | 'group' | 'pinned'>>): Promise<Snippet> {
     const database = await this.read();
     const index = database.snippets.findIndex((item) => item.id === id);
     if (index === -1) throw new Error(`No Float snippet found with id ${id}.`);

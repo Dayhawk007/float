@@ -33,7 +33,7 @@ For Codex, add the server in its MCP/local tools settings. For Claude Desktop, p
 
 ## Agent workflow
 
-Give the agent a short instruction such as: “Use Float for reusable context. Search before creating a note; create a concise note only when it is likely to be reused, and include a useful title and tags.” The agent can then:
+Give the agent a short instruction such as: “Use Float for reusable context. Search before creating a note; create a concise note only when it is likely to be reused, and include a useful title and group.” The agent can then:
 
 1. call `search_snippets` before answering or creating duplicate context;
 2. call `get_snippet` when it needs the full body of a candidate note;

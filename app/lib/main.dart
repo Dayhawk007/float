@@ -23,13 +23,6 @@ const suggestedSnippetGroups = [
   'Job profile information',
   'Preferences',
 ];
-const suggestedSnippetTags = [
-  'Career',
-  'Outreach',
-  'Profile',
-  'Template',
-  'Link',
-];
 
 void main() => runApp(const FloatApp());
 
@@ -44,7 +37,6 @@ class Snippet {
     required this.updatedAt,
     this.pinned = false,
     this.group = defaultSnippetGroup,
-    this.tags = const [],
   });
   final String id;
   final String title;
@@ -52,21 +44,18 @@ class Snippet {
   final DateTime updatedAt;
   final bool pinned;
   final String group;
-  final List<String> tags;
 
   Snippet copyWith({
     String? title,
     String? body,
     bool? pinned,
     String? group,
-    List<String>? tags,
   }) => Snippet(
     id: id,
     title: title ?? this.title,
     body: body ?? this.body,
     pinned: pinned ?? this.pinned,
     group: group ?? this.group,
-    tags: tags ?? this.tags,
     updatedAt: DateTime.now(),
   );
   Map<String, Object> toJson() => {
@@ -77,7 +66,6 @@ class Snippet {
     'createdAt': updatedAt.toIso8601String(),
     'pinned': pinned,
     'group': group,
-    'tags': tags,
   };
   factory Snippet.fromJson(Map<String, dynamic> json) => Snippet(
     id: json['id'] as String,
@@ -86,11 +74,6 @@ class Snippet {
     updatedAt: DateTime.parse(json['updatedAt'] as String),
     pinned: json['pinned'] as bool? ?? false,
     group: snippetGroup(json['group'] as String?),
-    tags: (json['tags'] as List<dynamic>? ?? const [])
-        .whereType<String>()
-        .map((tag) => tag.trim())
-        .where((tag) => tag.isNotEmpty)
-        .toList(),
   );
 }
 
@@ -103,7 +86,7 @@ String snippetGroup(String? value) {
 
 bool snippetMatchesQuery(Snippet snippet, String query) =>
     query.isEmpty ||
-    '${snippet.title}\n${snippet.body}\n${snippet.group}\n${snippet.tags.join('\n')}'
+    '${snippet.title}\n${snippet.body}\n${snippet.group}'
         .toLowerCase()
         .contains(query.toLowerCase());
 
@@ -782,8 +765,6 @@ class _SnippetEditorDialogState extends State<_SnippetEditorDialog> {
   late final TextEditingController _titleController;
   late final TextEditingController _bodyController;
   late final TextEditingController _groupController;
-  late final TextEditingController _tagController;
-  late List<String> _tags;
 
   @override
   void initState() {
@@ -793,8 +774,6 @@ class _SnippetEditorDialogState extends State<_SnippetEditorDialog> {
     _groupController = TextEditingController(
       text: widget.existing?.group ?? defaultSnippetGroup,
     );
-    _tagController = TextEditingController();
-    _tags = [...?widget.existing?.tags];
   }
 
   @override
@@ -802,7 +781,6 @@ class _SnippetEditorDialogState extends State<_SnippetEditorDialog> {
     _titleController.dispose();
     _bodyController.dispose();
     _groupController.dispose();
-    _tagController.dispose();
     super.dispose();
   }
 
@@ -815,7 +793,6 @@ class _SnippetEditorDialogState extends State<_SnippetEditorDialog> {
             title: title,
             body: _bodyController.text,
             group: snippetGroup(_groupController.text),
-            tags: _tags,
           ) ??
           Snippet(
             id: DateTime.now().microsecondsSinceEpoch.toString(),
@@ -823,23 +800,8 @@ class _SnippetEditorDialogState extends State<_SnippetEditorDialog> {
             body: _bodyController.text,
             updatedAt: DateTime.now(),
             group: snippetGroup(_groupController.text),
-            tags: _tags,
           ),
     );
-  }
-
-  void _addTags(String value) {
-    final additions = value
-        .split(',')
-        .map((tag) => tag.trim())
-        .where((tag) => tag.isNotEmpty)
-        .where(
-          (tag) => !_tags.any(
-            (existing) => existing.toLowerCase() == tag.toLowerCase(),
-          ),
-        );
-    setState(() => _tags = [..._tags, ...additions]);
-    _tagController.clear();
   }
 
   @override
@@ -884,66 +846,6 @@ class _SnippetEditorDialogState extends State<_SnippetEditorDialog> {
               dropdownMenuEntries: widget.availableGroups
                   .map((group) => DropdownMenuEntry(value: group, label: group))
                   .toList(),
-            ),
-            const SizedBox(height: 14),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'TAGS',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1,
-                ),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 7,
-              runSpacing: 7,
-              children: [
-                for (final tag in _tags)
-                  InputChip(
-                    label: Text('#$tag'),
-                    onDeleted: () => setState(() => _tags.remove(tag)),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _tagController,
-                    textCapitalization: TextCapitalization.words,
-                    onSubmitted: _addTags,
-                    decoration: const InputDecoration(
-                      labelText: 'Add tags',
-                      hintText: 'Separate tags with commas',
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Add tags',
-                  onPressed: () => _addTags(_tagController.text),
-                  icon: const Icon(Icons.add_rounded),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 7,
-              runSpacing: 7,
-              children: [
-                for (final tag in suggestedSnippetTags.where(
-                  (tag) => !_tags.any(
-                    (existing) => existing.toLowerCase() == tag.toLowerCase(),
-                  ),
-                ))
-                  ActionChip(
-                    label: Text('#$tag'),
-                    onPressed: () => _addTags(tag),
-                  ),
-              ],
             ),
           ],
         ),
@@ -1031,21 +933,6 @@ class _SnippetCard extends StatelessWidget {
                             : FloatTheme.mutedInk,
                       ),
                     ),
-                    if (snippet.tags.isNotEmpty) ...[
-                      const SizedBox(height: 5),
-                      Text(
-                        snippet.tags.map((tag) => '#$tag').join('  '),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: snippet.pinned
-                              ? const Color(0xFFD7D7D2)
-                              : FloatTheme.mutedInk,
-                        ),
-                      ),
-                    ],
                   ],
                 ),
               ),

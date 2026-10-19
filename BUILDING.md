@@ -29,7 +29,7 @@ For every client-side change that affects UI or interaction, follow `DESIGN.md` 
 - Paired agents have a stable local identity and advertise `_float._tcp.local` on the trusted LAN. If the desktop receives a new LAN IP, Android searches for that identity after a sync failure, verifies it through the health endpoint, persists the recovered URL, and retries sync. Tokens and note contents are never advertised.
 - Account-free paired-device sync foundation: `float pair serve` creates a ten-minute QR credential plus an eight-digit manual code, issues a per-device token, and serves the desktop's local snippet store only while explicitly running on the local network. The Android app can scan the QR, enter the printed agent URL and code, stores its token in Android secure storage, and performs foreground last-write-wins sync.
 - Pairing and sync emit structured, privacy-safe diagnostics to Android `FloatPair` logs and the local agent terminal. They record stage, origin, status, count, elapsed time, and error type, never tokens or note contents.
-- Notes carry portable `group` and `tags` fields (default group: `General`). The Android editor has a searchable group picker that accepts new names plus suggested groups (General, Cold messages, Job profile information, Preferences), and an icon-free tag composer with suggestions. The main list and overlay navigate groups with chips; overlay search spans title, body, group, and tags; CLI/MCP/sync preserve both fields.
+- Notes carry a portable `group` field (default: `General`). The Android editor has a searchable group picker that accepts new names plus suggested groups (General, Cold messages, Job profile information, Preferences). The main list and overlay navigate groups with chips; overlay search spans title, body, and group; CLI/MCP/sync preserve the same field.
 - The overlay launcher uses a picture-in-picture control in the app and a high-contrast, borderless stacked-notes handle. Manual paired-device sync closes its status dialog, shows an in-progress indicator, then replaces it with the sync result.
 
 ### Explicitly not implemented
@@ -42,4 +42,4 @@ For every client-side change that affects UI or interaction, follow `DESIGN.md` 
 
 1. Test auto-start and mDNS recovery on physical Android devices and common OEM variants.
 2. Add user-controlled retention limits and deletion controls for clipboard-history entries.
-3. Replace `shared_preferences` with a transactional local database before the data model grows to tags, lists, and export/import.
+3. Replace `shared_preferences` with a transactional local database before the data model grows to lists and export/import.

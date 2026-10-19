@@ -323,15 +323,7 @@ class _ExpandedOverlay extends StatelessWidget {
                                   ),
                                 ),
                                 subtitle: Text(
-                                  [
-                                        snippet.body,
-                                        if (snippet.tags.isNotEmpty)
-                                          snippet.tags
-                                              .map((tag) => '#$tag')
-                                              .join(' '),
-                                      ]
-                                      .where((value) => value.isNotEmpty)
-                                      .join(' · '),
+                                  snippet.body,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
