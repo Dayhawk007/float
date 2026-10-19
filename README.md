@@ -44,6 +44,8 @@ The CLI prints a one-time pairing URI, terminal QR code, and an eight-digit manu
 
 If the pairing server is already running and its terminal is unavailable, use `node cli/dist/index.js pair show`. It contacts that existing local process over loopback and reprints the active QR and manual code without starting a second server or opening another port.
 
+If the persistent `float agent serve` process already owns the default port, `float pair serve` opens a ten-minute pairing session on that same process and prints its QR. It does not start a second agent or interrupt already-paired devices.
+
 If the computer or `float pair serve` restarts, simply run the same command again from the same Float data directory. The agent restores paired-device token hashes from `%USERPROFILE%\\.float\\paired-devices.json`, while the phone retains its token in Android secure storage. Float retries its foreground sync automatically, so a restarted agent on the same address resumes without scanning a new QR code. A changed PC LAN address still requires local discovery or an updated pairing address; that is a future mDNS feature.
 
 ### Pairing diagnostics
