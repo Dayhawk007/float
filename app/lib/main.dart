@@ -19,10 +19,16 @@ const notesPageSize = 20;
 const defaultSnippetGroup = 'General';
 const suggestedSnippetGroups = [
   defaultSnippetGroup,
-  'Jobs',
-  'Cold posting',
-  'Profile',
+  'Cold messages',
+  'Job profile information',
   'Preferences',
+];
+const suggestedSnippetTags = [
+  'Career',
+  'Outreach',
+  'Profile',
+  'Template',
+  'Link',
 ];
 
 void main() => runApp(const FloatApp());
@@ -38,6 +44,7 @@ class Snippet {
     required this.updatedAt,
     this.pinned = false,
     this.group = defaultSnippetGroup,
+    this.tags = const [],
   });
   final String id;
   final String title;
@@ -45,18 +52,21 @@ class Snippet {
   final DateTime updatedAt;
   final bool pinned;
   final String group;
+  final List<String> tags;
 
   Snippet copyWith({
     String? title,
     String? body,
     bool? pinned,
     String? group,
+    List<String>? tags,
   }) => Snippet(
     id: id,
     title: title ?? this.title,
     body: body ?? this.body,
     pinned: pinned ?? this.pinned,
     group: group ?? this.group,
+    tags: tags ?? this.tags,
     updatedAt: DateTime.now(),
   );
   Map<String, Object> toJson() => {
@@ -67,6 +77,7 @@ class Snippet {
     'createdAt': updatedAt.toIso8601String(),
     'pinned': pinned,
     'group': group,
+    'tags': tags,
   };
   factory Snippet.fromJson(Map<String, dynamic> json) => Snippet(
     id: json['id'] as String,
@@ -75,6 +86,11 @@ class Snippet {
     updatedAt: DateTime.parse(json['updatedAt'] as String),
     pinned: json['pinned'] as bool? ?? false,
     group: snippetGroup(json['group'] as String?),
+    tags: (json['tags'] as List<dynamic>? ?? const [])
+        .whereType<String>()
+        .map((tag) => tag.trim())
+        .where((tag) => tag.isNotEmpty)
+        .toList(),
   );
 }
 
@@ -87,50 +103,9 @@ String snippetGroup(String? value) {
 
 bool snippetMatchesQuery(Snippet snippet, String query) =>
     query.isEmpty ||
-    '${snippet.title}\n${snippet.body}\n${snippet.group}'
+    '${snippet.title}\n${snippet.body}\n${snippet.group}\n${snippet.tags.join('\n')}'
         .toLowerCase()
         .contains(query.toLowerCase());
-
-enum SnippetKind { linkedin, link, template, code, text }
-
-SnippetKind snippetKind(Snippet snippet) {
-  final value = '${snippet.title}\n${snippet.body}'.toLowerCase();
-  final uri = Uri.tryParse(snippet.body.trim());
-  if (uri != null && uri.hasScheme && uri.host.contains('linkedin.com')) {
-    return SnippetKind.linkedin;
-  }
-  if (uri != null && uri.hasScheme && uri.host.isNotEmpty) {
-    return SnippetKind.link;
-  }
-  if (value.contains('template') ||
-      value.contains('{{') ||
-      value.contains('\${') ||
-      value.contains('[[')) {
-    return SnippetKind.template;
-  }
-  if (value.contains('```') ||
-      value.contains('function ') ||
-      value.contains('const ')) {
-    return SnippetKind.code;
-  }
-  return SnippetKind.text;
-}
-
-String snippetKindLabel(SnippetKind kind) => switch (kind) {
-  SnippetKind.linkedin => 'LINKEDIN',
-  SnippetKind.link => 'LINK',
-  SnippetKind.template => 'TEMPLATE',
-  SnippetKind.code => 'CODE',
-  SnippetKind.text => 'NOTE',
-};
-
-IconData snippetKindIcon(SnippetKind kind) => switch (kind) {
-  SnippetKind.linkedin => Icons.work_outline_rounded,
-  SnippetKind.link => Icons.link_rounded,
-  SnippetKind.template => Icons.dashboard_customize_outlined,
-  SnippetKind.code => Icons.data_object_rounded,
-  SnippetKind.text => Icons.note_outlined,
-};
 
 class FloatApp extends StatelessWidget {
   const FloatApp({super.key});
@@ -569,7 +544,13 @@ class _SnippetHomeState extends State<SnippetHome> {
   Future<void> _edit([Snippet? existing]) async {
     final result = await showDialog<Snippet>(
       context: context,
-      builder: (_) => _SnippetEditorDialog(existing: existing),
+      builder: (_) => _SnippetEditorDialog(
+        existing: existing,
+        availableGroups: {
+          ...suggestedSnippetGroups,
+          ..._snippets.map((snippet) => snippet.group),
+        }.toList()..sort(),
+      ),
     );
     if (result != null) await _upsert(result);
   }
@@ -788,9 +769,10 @@ class _SnippetHomeState extends State<SnippetHome> {
 }
 
 class _SnippetEditorDialog extends StatefulWidget {
-  const _SnippetEditorDialog({this.existing});
+  const _SnippetEditorDialog({this.existing, required this.availableGroups});
 
   final Snippet? existing;
+  final List<String> availableGroups;
 
   @override
   State<_SnippetEditorDialog> createState() => _SnippetEditorDialogState();
@@ -800,6 +782,8 @@ class _SnippetEditorDialogState extends State<_SnippetEditorDialog> {
   late final TextEditingController _titleController;
   late final TextEditingController _bodyController;
   late final TextEditingController _groupController;
+  late final TextEditingController _tagController;
+  late List<String> _tags;
 
   @override
   void initState() {
@@ -809,6 +793,8 @@ class _SnippetEditorDialogState extends State<_SnippetEditorDialog> {
     _groupController = TextEditingController(
       text: widget.existing?.group ?? defaultSnippetGroup,
     );
+    _tagController = TextEditingController();
+    _tags = [...?widget.existing?.tags];
   }
 
   @override
@@ -816,6 +802,7 @@ class _SnippetEditorDialogState extends State<_SnippetEditorDialog> {
     _titleController.dispose();
     _bodyController.dispose();
     _groupController.dispose();
+    _tagController.dispose();
     super.dispose();
   }
 
@@ -828,6 +815,7 @@ class _SnippetEditorDialogState extends State<_SnippetEditorDialog> {
             title: title,
             body: _bodyController.text,
             group: snippetGroup(_groupController.text),
+            tags: _tags,
           ) ??
           Snippet(
             id: DateTime.now().microsecondsSinceEpoch.toString(),
@@ -835,8 +823,23 @@ class _SnippetEditorDialogState extends State<_SnippetEditorDialog> {
             body: _bodyController.text,
             updatedAt: DateTime.now(),
             group: snippetGroup(_groupController.text),
+            tags: _tags,
           ),
     );
+  }
+
+  void _addTags(String value) {
+    final additions = value
+        .split(',')
+        .map((tag) => tag.trim())
+        .where((tag) => tag.isNotEmpty)
+        .where(
+          (tag) => !_tags.any(
+            (existing) => existing.toLowerCase() == tag.toLowerCase(),
+          ),
+        );
+    setState(() => _tags = [..._tags, ...additions]);
+    _tagController.clear();
   }
 
   @override
@@ -850,34 +853,100 @@ class _SnippetEditorDialogState extends State<_SnippetEditorDialog> {
     title: Text(widget.existing == null ? 'New note' : 'Edit note'),
     content: SizedBox(
       width: 420,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: _titleController,
-            autofocus: true,
-            decoration: const InputDecoration(labelText: 'Title'),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _bodyController,
-            minLines: 4,
-            maxLines: 8,
-            decoration: const InputDecoration(
-              labelText: 'Content',
-              alignLabelWithHint: true,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _titleController,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: 'Title'),
             ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _groupController,
-            textCapitalization: TextCapitalization.words,
-            decoration: InputDecoration(
-              labelText: 'Group',
-              hintText: suggestedSnippetGroups.skip(1).join(', '),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _bodyController,
+              minLines: 4,
+              maxLines: 8,
+              decoration: const InputDecoration(
+                labelText: 'Content',
+                alignLabelWithHint: true,
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 12),
+            DropdownMenu<String>(
+              controller: _groupController,
+              label: const Text('Group'),
+              hintText: 'Choose or create a group',
+              enableFilter: true,
+              enableSearch: true,
+              requestFocusOnTap: true,
+              expandedInsets: EdgeInsets.zero,
+              dropdownMenuEntries: widget.availableGroups
+                  .map((group) => DropdownMenuEntry(value: group, label: group))
+                  .toList(),
+            ),
+            const SizedBox(height: 14),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'TAGS',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1,
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              children: [
+                for (final tag in _tags)
+                  InputChip(
+                    label: Text('#$tag'),
+                    onDeleted: () => setState(() => _tags.remove(tag)),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _tagController,
+                    textCapitalization: TextCapitalization.words,
+                    onSubmitted: _addTags,
+                    decoration: const InputDecoration(
+                      labelText: 'Add tags',
+                      hintText: 'Separate tags with commas',
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Add tags',
+                  onPressed: () => _addTags(_tagController.text),
+                  icon: const Icon(Icons.add_rounded),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              children: [
+                for (final tag in suggestedSnippetTags.where(
+                  (tag) => !_tags.any(
+                    (existing) => existing.toLowerCase() == tag.toLowerCase(),
+                  ),
+                ))
+                  ActionChip(
+                    label: Text('#$tag'),
+                    onPressed: () => _addTags(tag),
+                  ),
+              ],
+            ),
+          ],
+        ),
       ),
     ),
     actions: [
@@ -922,15 +991,6 @@ class _SnippetCard extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Padding(
-                padding: const EdgeInsets.only(top: 3),
-                child: Icon(
-                  snippetKindIcon(snippetKind(snippet)),
-                  color: snippet.pinned ? Colors.white : FloatTheme.ink,
-                  size: 19,
-                ),
-              ),
-              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -960,8 +1020,6 @@ class _SnippetCard extends StatelessWidget {
                       ),
                     ],
                     const SizedBox(height: 8),
-                    _SnippetKindBadge(kind: snippetKind(snippet)),
-                    const SizedBox(height: 6),
                     Text(
                       snippet.group.toUpperCase(),
                       style: TextStyle(
@@ -973,6 +1031,21 @@ class _SnippetCard extends StatelessWidget {
                             : FloatTheme.mutedInk,
                       ),
                     ),
+                    if (snippet.tags.isNotEmpty) ...[
+                      const SizedBox(height: 5),
+                      Text(
+                        snippet.tags.map((tag) => '#$tag').join('  '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: snippet.pinned
+                              ? const Color(0xFFD7D7D2)
+                              : FloatTheme.mutedInk,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -1016,38 +1089,6 @@ class _PaginationControl extends StatelessWidget {
     onPressed: onShowMore,
     icon: const Icon(Icons.expand_more_rounded),
     label: Text('SHOW MORE · $shown OF $total'),
-  );
-}
-
-class _SnippetKindBadge extends StatelessWidget {
-  const _SnippetKindBadge({required this.kind});
-
-  final SnippetKind kind;
-
-  @override
-  Widget build(BuildContext context) => DecoratedBox(
-    decoration: BoxDecoration(
-      color: FloatTheme.soft,
-      borderRadius: BorderRadius.circular(7),
-    ),
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(snippetKindIcon(kind), size: 12),
-          const SizedBox(width: 4),
-          Text(
-            snippetKindLabel(kind),
-            style: const TextStyle(
-              fontSize: 9,
-              fontWeight: FontWeight.w800,
-              letterSpacing: .7,
-            ),
-          ),
-        ],
-      ),
-    ),
   );
 }
 

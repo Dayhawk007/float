@@ -24,6 +24,7 @@ class _FloatOverlayState extends State<FloatOverlay> {
   bool _expanded = false;
   int _visibleSnippetCount = overlayPageSize;
   String _query = '';
+  String? _selectedGroup;
 
   @override
   void initState() {
@@ -63,7 +64,8 @@ class _FloatOverlayState extends State<FloatOverlay> {
   }
 
   Future<void> _expand() async {
-    await FlutterOverlayWindow.resizeOverlay(340, 400, false);
+    await FlutterOverlayWindow.updateFlag(OverlayFlag.focusPointer);
+    await FlutterOverlayWindow.resizeOverlay(340, 440, false);
     if (mounted) setState(() => _expanded = true);
   }
 
@@ -73,12 +75,20 @@ class _FloatOverlayState extends State<FloatOverlay> {
 
   Future<void> _collapse() async {
     await FlutterOverlayWindow.resizeOverlay(72, 72, true);
+    await FlutterOverlayWindow.updateFlag(OverlayFlag.defaultFlag);
     if (mounted) setState(() => _expanded = false);
   }
 
   void _setQuery(String value) {
     setState(() {
       _query = value.trim();
+      _visibleSnippetCount = overlayPageSize;
+    });
+  }
+
+  void _setGroup(String? value) {
+    setState(() {
+      _selectedGroup = value;
       _visibleSnippetCount = overlayPageSize;
     });
   }
@@ -90,8 +100,14 @@ class _FloatOverlayState extends State<FloatOverlay> {
 
   @override
   Widget build(BuildContext context) {
+    final groups = _snippets.map((snippet) => snippet.group).toSet().toList()
+      ..sort();
     final visible = _snippets
-        .where((snippet) => snippetMatchesQuery(snippet, _query))
+        .where(
+          (snippet) =>
+              (_selectedGroup == null || snippet.group == _selectedGroup) &&
+              snippetMatchesQuery(snippet, _query),
+        )
         .toList();
     return MaterialApp(
       debugShowCheckedModeBanner: false,
@@ -113,6 +129,9 @@ class _FloatOverlayState extends State<FloatOverlay> {
                   onShowMore: _showMore,
                   query: _query,
                   onQueryChanged: _setQuery,
+                  groups: groups,
+                  selectedGroup: _selectedGroup,
+                  onGroupChanged: _setGroup,
                 )
               : const _OverlayHandle(key: ValueKey('handle')),
         ),
@@ -169,6 +188,9 @@ class _ExpandedOverlay extends StatelessWidget {
     required this.onShowMore,
     required this.query,
     required this.onQueryChanged,
+    required this.groups,
+    required this.selectedGroup,
+    required this.onGroupChanged,
   });
   final List<Snippet> snippets;
   final int totalSnippetCount;
@@ -179,6 +201,9 @@ class _ExpandedOverlay extends StatelessWidget {
   final VoidCallback onShowMore;
   final String query;
   final ValueChanged<String> onQueryChanged;
+  final List<String> groups;
+  final String? selectedGroup;
+  final ValueChanged<String?> onGroupChanged;
 
   @override
   Widget build(BuildContext context) => SafeArea(
@@ -233,6 +258,32 @@ class _ExpandedOverlay extends StatelessWidget {
               ),
             ),
           ),
+          SizedBox(
+            height: 38,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(14, 2, 14, 4),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: ChoiceChip(
+                    label: const Text('ALL'),
+                    selected: selectedGroup == null,
+                    onSelected: (_) => onGroupChanged(null),
+                  ),
+                ),
+                for (final group in groups)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: ChoiceChip(
+                      label: Text(group),
+                      selected: selectedGroup == group,
+                      onSelected: (_) => onGroupChanged(group),
+                    ),
+                  ),
+              ],
+            ),
+          ),
           Expanded(
             child: snippets.isEmpty
                 ? const Center(
@@ -271,12 +322,16 @@ class _ExpandedOverlay extends StatelessWidget {
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
-                                leading: Icon(
-                                  snippetKindIcon(snippetKind(snippet)),
-                                  size: 18,
-                                ),
                                 subtitle: Text(
-                                  snippet.body,
+                                  [
+                                        snippet.body,
+                                        if (snippet.tags.isNotEmpty)
+                                          snippet.tags
+                                              .map((tag) => '#$tag')
+                                              .join(' '),
+                                      ]
+                                      .where((value) => value.isNotEmpty)
+                                      .join(' · '),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
