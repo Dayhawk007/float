@@ -23,11 +23,9 @@ app/windows/flutter/ephemeral/
 /packages/flutter_overlay_window_local/.metadata
 /packages/flutter_overlay_window_local/analysis_options.yaml
 
-# Local agent working memory and implementation guidance. These documents may
-# contain private product context; keep them outside the public repository.
+# Local product memory and implementation guidance. These documents may contain
+# private product context; keep them outside the public repository.
 /PRD.md
 /BUILDING.md
 /DEBUGGING.md
 /DESIGN.md
-/MCP.md
-/MCP-AGENT-SETUP.md

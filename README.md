@@ -70,6 +70,8 @@ Keep the `float pair serve` terminal open during pairing. It prints `[float-agen
 
 ### MCP server
 
+See [MCP.md](MCP.md) for client setup and the recommended agent workflow. For agent-driven installation, provide [MCP-AGENT-SETUP.md](MCP-AGENT-SETUP.md) to an MCP-capable agent.
+
 Build the CLI, then configure Codex, Claude Desktop, Cursor, or another MCP-compatible client to launch:
 
 ```text
