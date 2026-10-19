@@ -71,3 +71,7 @@ Clipboard history is opt-in. When enabled, Float keeps the latest 20 text pastes
 pnpm --dir cli build
 cd app; flutter test
 ```
+
+## License
+
+Float is available under the [MIT License](LICENSE).
